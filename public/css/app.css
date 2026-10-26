@@ -42,12 +42,9 @@ a { color: var(--color-primario); }
 }
 .barra__marca { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; }
 .barra__logo {
-    display: inline-flex; align-items: center; justify-content: center;
     width: 34px; height: 34px; border-radius: 50%;
-    background: var(--color-blanco); color: var(--color-primario);
-    font-weight: 700; font-size: 0.9rem;
+    background: var(--color-blanco); padding: 2px;
 }
-.barra__logo--grande { width: 56px; height: 56px; font-size: 1.3rem; }
 .barra__nav { flex: 1; display: flex; gap: 16px; }
 .barra__nav a { color: var(--color-blanco); text-decoration: none; opacity: 0.9; }
 .barra__nav a:hover { opacity: 1; text-decoration: underline; }
@@ -93,7 +90,7 @@ a { color: var(--color-primario); }
     box-shadow: var(--sombra); width: 100%; max-width: 400px;
 }
 .login__marca { text-align: center; margin-bottom: 24px; }
-.login__marca .barra__logo { background: var(--color-primario); color: var(--color-blanco); }
+.login__logo { width: 96px; height: 96px; }
 .login__marca h1 { margin: 12px 0 4px; font-size: 1.5rem; }
 .login__marca p { margin: 0; color: var(--color-texto-suave); font-size: 0.9rem; }
 .login__pie { text-align: center; font-size: 0.85rem; margin-top: 20px; color: var(--color-texto-suave); }

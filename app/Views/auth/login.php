@@ -4,7 +4,7 @@
 <section class="login">
     <div class="login__caja">
         <div class="login__marca">
-            <span class="barra__logo barra__logo--grande">TP</span>
+            <img class="login__logo" src="<?= base_url('img/logo.png') ?>" alt="Logo de TurnoPlaner" width="96" height="96">
             <h1>TurnoPlaner</h1>
             <p>Sistema de turnos rotativos de enfermeria</p>
         </div>

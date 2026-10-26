@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= esc($titulo ?? 'TurnoPlaner') ?> - TurnoPlaner</title>
+    <link rel="icon" type="image/png" href="<?= base_url('img/favicon.png') ?>">
     <link rel="stylesheet" href="<?= base_url('css/app.css') ?>">
 </head>
 <body class="<?= esc($bodyClass ?? '') ?>">
@@ -11,7 +12,7 @@
     <?php if (session()->get('logueado')): ?>
     <header class="barra">
         <div class="barra__marca">
-            <span class="barra__logo">TP</span>
+            <img class="barra__logo" src="<?= base_url('img/logo-64.png') ?>" alt="Logo de TurnoPlaner" width="34" height="34">
             <strong>TurnoPlaner</strong>
         </div>
         <nav class="barra__nav">
