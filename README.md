@@ -40,11 +40,13 @@ Stack: PHP 8.2 + CodeIgniter 4.7 + MySQL (XAMPP) + HTML5 / CSS3 / JavaScript pla
 
 Usuarios de prueba que crea el script (solo para desarrollo):
 
-| Email | Contrasena | Rol | Estado |
-|-------|------------|-----|--------|
-| admin@turnoplaner.local | admin123 | ADMIN | ACTIVO |
-| enfermera@turnoplaner.local | enfermero123 | ENFERMERO | ACTIVO |
-| nuevo@turnoplaner.local | enfermero123 | ENFERMERO | ACTIVO (debe cambiar la contrasena al entrar) |
+| Email | Contrasena | Rol | Estado | Primer ingreso |
+|-------|------------|-----|--------|----------------|
+| admin@turnoplaner.local | admin123 | ADMIN | ACTIVO | No |
+| enfermera@turnoplaner.local | enfermero123 | ENFERMERO | ACTIVO | No |
+| nuevo@turnoplaner.local | enfermero123 | ENFERMERO | ACTIVO | Si, debe cambiar la contrasena al entrar |
+
+Las cuentas las crea el administrador desde el sistema; no hay registro publico.
 
 Alternativa con Apache de XAMPP: copiar la carpeta a `C:\xampp\htdocs\turnoplaner`
 y entrar a http://localhost/turnoplaner/public (cambiar `app.baseURL` acorde).
