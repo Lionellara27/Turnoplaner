@@ -5,10 +5,14 @@ namespace App\Controllers;
 /**
  * Controlador de autenticacion (HU-02: Login y cierre de sesion).
  *
+ * Decision del grupo (confirmada por la catedra el 26/10/2026): NO hay
+ * registro publico. Las cuentas las crea el Administrador (HU-05) y le
+ * entrega usuario y contrasena temporal al enfermero/a. En el primer
+ * ingreso el sistema le pide cambiar la contrasena (HU-01).
+ *
  * SPRINT 1 - version base: el login todavia NO valida usuario ni contrasena.
- * Cualquier dato que se mande entra al sistema. Cuando exista la tabla
- * "usuarios" (HU-01 / HU-05) se reemplaza el TODO de doLogin() por la
- * consulta real al modelo y la verificacion con password_verify().
+ * Cualquier dato que se mande entra al sistema. Se reemplaza el TODO de
+ * doLogin() por la consulta real al modelo y password_verify().
  */
 class Auth extends BaseController
 {

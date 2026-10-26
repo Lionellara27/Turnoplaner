@@ -16,7 +16,7 @@
                 <label for="usuario">Usuario (DNI o email)</label>
                 <input type="text" id="usuario" name="usuario" placeholder="Ej: 30123456"
                        autocomplete="username" autofocus>
-                <small class="campo__ayuda">Por ahora podes dejarlo vacio: el login todavia no valida.</small>
+                <small class="campo__ayuda">Usuario entregado por el administrador. Por ahora el login no valida.</small>
             </div>
 
             <div class="campo">
@@ -29,7 +29,8 @@
         </form>
 
         <p class="login__pie">
-            Sos enfermero/a y no tenes cuenta? <a href="#">Registrate</a> <small>(proximamente, HU-01)</small>
+            Las cuentas las crea el administrador del hospital.<br>
+            Si no tenes usuario o no recordas la contrasena, pedila a la coordinacion.
         </p>
     </div>
 </section>

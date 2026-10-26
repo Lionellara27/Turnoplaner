@@ -20,6 +20,8 @@ USE turnoplaner;
 --  TABLA: usuarios   (HU-01, HU-02, HU-03, HU-05 a HU-08)
 --  Un solo tipo de usuario con columna "rol". El enfermero/a
 --  guarda ademas sus datos profesionales.
+--  NO hay registro publico: las cuentas las crea el ADMIN con una
+--  contrasena temporal (debe_cambiar_pass = 1).
 --  Baja logica: columna "estado", nunca DELETE.
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS usuarios;
@@ -36,8 +38,8 @@ CREATE TABLE usuarios (
     rol                 ENUM('ADMIN', 'ENFERMERO') NOT NULL DEFAULT 'ENFERMERO',
     especialidad        VARCHAR(80)      NULL,           -- solo enfermeros/as
     carga_horaria_max   TINYINT UNSIGNED NULL,           -- horas semanales contratadas
-    estado              ENUM('PENDIENTE', 'ACTIVO', 'BAJA') NOT NULL DEFAULT 'PENDIENTE',
-    debe_cambiar_pass   TINYINT(1)       NOT NULL DEFAULT 0,
+    estado              ENUM('ACTIVO', 'BAJA') NOT NULL DEFAULT 'ACTIVO',
+    debe_cambiar_pass   TINYINT(1)       NOT NULL DEFAULT 1,  -- 1 = primer ingreso, debe cambiarla
     created_at          DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME         NULL ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -51,19 +53,19 @@ CREATE TABLE usuarios (
 --  Contrasenas (en texto plano, solo para desarrollo):
 --    admin@turnoplaner.local      -> admin123
 --    enfermera@turnoplaner.local  -> enfermero123
---    pendiente@turnoplaner.local  -> enfermero123  (todavia no habilitado)
+--    nuevo@turnoplaner.local      -> enfermero123  (recien creado, debe cambiarla)
 -- ------------------------------------------------------------
 INSERT INTO usuarios
-    (nombre, apellido, dni, matricula, email, telefono, password_hash, rol, especialidad, carga_horaria_max, estado)
+    (nombre, apellido, dni, matricula, email, telefono, password_hash, rol, especialidad, carga_horaria_max, estado, debe_cambiar_pass)
 VALUES
     ('Admin', 'Sistema', '20000000', NULL, 'admin@turnoplaner.local', '2920000000',
-     '$2y$10$anNSqYPlv1W3q8HSe1E1fORfpZ9wIby4dgNulp1yP6OWEtHsnAa0C', 'ADMIN', NULL, NULL, 'ACTIVO'),
+     '$2y$10$anNSqYPlv1W3q8HSe1E1fORfpZ9wIby4dgNulp1yP6OWEtHsnAa0C', 'ADMIN', NULL, NULL, 'ACTIVO', 0),
 
     ('Maria', 'Gomez', '30123456', 'MP-1001', 'enfermera@turnoplaner.local', '2920111111',
-     '$2y$10$jXySqRJ1ur32wT/fMe1rP.vxWLoCXxMVtVMELnZYgiuE9PLDbof5u', 'ENFERMERO', 'Terapia intensiva', 36, 'ACTIVO'),
+     '$2y$10$jXySqRJ1ur32wT/fMe1rP.vxWLoCXxMVtVMELnZYgiuE9PLDbof5u', 'ENFERMERO', 'Terapia intensiva', 36, 'ACTIVO', 0),
 
-    ('Juan', 'Perez', '31234567', 'MP-1002', 'pendiente@turnoplaner.local', '2920222222',
-     '$2y$10$jXySqRJ1ur32wT/fMe1rP.vxWLoCXxMVtVMELnZYgiuE9PLDbof5u', 'ENFERMERO', 'Guardia', 40, 'PENDIENTE');
+    ('Juan', 'Perez', '31234567', 'MP-1002', 'nuevo@turnoplaner.local', '2920222222',
+     '$2y$10$jXySqRJ1ur32wT/fMe1rP.vxWLoCXxMVtVMELnZYgiuE9PLDbof5u', 'ENFERMERO', 'Guardia', 40, 'ACTIVO', 1);
 
 -- ------------------------------------------------------------
 --  PROXIMAS TABLAS (se agregan en su HU, no antes):

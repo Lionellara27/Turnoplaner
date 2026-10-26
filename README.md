@@ -44,10 +44,16 @@ Usuarios de prueba que crea el script (solo para desarrollo):
 |-------|------------|-----|--------|
 | admin@turnoplaner.local | admin123 | ADMIN | ACTIVO |
 | enfermera@turnoplaner.local | enfermero123 | ENFERMERO | ACTIVO |
-| pendiente@turnoplaner.local | enfermero123 | ENFERMERO | PENDIENTE |
+| nuevo@turnoplaner.local | enfermero123 | ENFERMERO | ACTIVO (debe cambiar la contrasena al entrar) |
 
 Alternativa con Apache de XAMPP: copiar la carpeta a `C:\xampp\htdocs\turnoplaner`
 y entrar a http://localhost/turnoplaner/public (cambiar `app.baseURL` acorde).
+
+## Decisiones del grupo
+
+- **No hay registro publico** (confirmado por la catedra el 26/10/2026). Es un sistema interno del
+  hospital: el Administrador da de alta al enfermero/a y le entrega usuario y contrasena temporal.
+  En el primer ingreso el sistema obliga a cambiarla. La pantalla de login solo tiene usuario y contrasena.
 
 ## Estado actual (Sprint 1 - base)
 
