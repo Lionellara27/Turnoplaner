@@ -1,0 +1,24 @@
+# Entorno local (cada integrante tiene el suyo; se copia desde "env")
+.env
+
+# Archivos generados por CodeIgniter en tiempo de ejecucion
+writable/cache/*
+!writable/cache/index.html
+writable/logs/*
+!writable/logs/index.html
+writable/session/*
+!writable/session/index.html
+writable/uploads/*
+!writable/uploads/index.html
+writable/debugbar/*
+!writable/debugbar/index.html
+
+# Dependencias (si algun dia se usa Composer)
+vendor/
+
+# Editores y sistema
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+.DS_Store
