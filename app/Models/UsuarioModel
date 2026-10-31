@@ -1,0 +1,59 @@
+<?php
+
+namespace App\Models;
+
+use CodeIgniter\Model;
+use App\Entities\Usuario;
+
+class UsuarioModel extends Model
+{
+    protected $table            = 'usuarios';
+    protected $primaryKey       = 'id';
+    protected $useAutoIncrement = true;
+    
+    // Indica que las consultas devuelvan instancias de la Entidad Usuario
+    protected $returnType       = Usuario::class; 
+    protected $useTimestamps     = true; // Maneja automáticamente created_at y updated_at
+
+    protected $allowedFields = [
+        'nombre',
+        'apellido',
+        'dni',
+        'matricula',
+        'email',
+        'telefono',
+        'especialidad',
+        'turno_preferente',
+        'password',
+        'rol',
+        'estado'
+    ];
+
+    // Reglas de validación a nivel Servidor (Criterios de Aceptación de la HU-01)
+    protected $validationRules = [
+        'nombre'       => 'required|min_length[2]|max_length[50]',
+        'apellido'     => 'required|min_length[2]|max_length[50]',
+        'dni'          => 'required|is_unique[usuarios.dni]|numeric',
+        'matricula'    => 'required|is_unique[usuarios.matricula]',
+        'email'        => 'required|valid_email|is_unique[usuarios.email]',
+        'telefono'     => 'required',
+        'especialidad' => 'required',
+        'password'     => 'required|min_length[8]',
+        'pass_confirm' => 'required|matches[password]'
+    ];
+
+    protected $validationMessages = [
+        'dni' => [
+            'is_unique' => 'El DNI ingresado ya se encuentra registrado en el sistema.'
+        ],
+        'matricula' => [
+            'is_unique' => 'La matrícula profesional ya está registrada.'
+        ],
+        'email' => [
+            'is_unique' => 'El correo electrónico ya pertenece a una cuenta existente.'
+        ],
+        'pass_confirm' => [
+            'matches' => 'Las contraseñas ingresadas no coinciden.'
+        ]
+    ];
+}

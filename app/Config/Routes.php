@@ -17,6 +17,10 @@ $routes->get('login', 'Auth::login');           // GET  -> muestra el formulario
 $routes->post('login', 'Auth::doLogin');        // POST -> procesa el formulario
 $routes->get('logout', 'Auth::logout');         // cierra la sesion
 
+// Registro de Enfermeros (HU-01) testeando views de stitch
+$routes->get('registro', 'Auth::register');
+$routes->post('registro/guardar', 'Auth::guardar');
+
 // --- Rutas privadas (protegidas por el filtro "auth") ---
 $routes->group('', ['filter' => 'auth'], static function (RouteCollection $routes): void {
     $routes->get('inicio', 'Home::index');      // pantalla principal del sistema
