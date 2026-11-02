@@ -13,6 +13,7 @@ use CodeIgniter\Filters\PageCache;
 use CodeIgniter\Filters\PerformanceMetrics;
 use CodeIgniter\Filters\SecureHeaders;
 use App\Filters\AuthFilter;
+use App\Filters\RoleFilter;
 
 class Filters extends BaseFilters
 {
@@ -36,6 +37,7 @@ class Filters extends BaseFilters
         'pagecache'     => PageCache::class,
         'performance'   => PerformanceMetrics::class,
         'auth'          => AuthFilter::class, // filtro propio: exige sesion iniciada
+        'role'          => RoleFilter::class, // control de acceso por roles (RBAC)
     ];
 
     /**
@@ -110,3 +112,4 @@ class Filters extends BaseFilters
      */
     public array $filters = [];
 }
+

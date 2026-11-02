@@ -42,6 +42,7 @@ CREATE TABLE usuarios (
     debe_cambiar_pass   TINYINT(1)       NOT NULL DEFAULT 1,  -- 1 = primer ingreso, debe cambiarla
     created_at          DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME         NULL ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at          DATETIME         NULL DEFAULT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_usuarios_dni (dni),
     UNIQUE KEY uq_usuarios_email (email),
@@ -76,3 +77,4 @@ VALUES
 --    ausencias         -> HU-18
 --    coberturas        -> HU-16
 -- ------------------------------------------------------------
+
