@@ -183,4 +183,5 @@ Antes de dar por completada una Historia de Usuario en el tablero Scrum, el equi
 | **Usabilidad y accesibilidad** (4 estados, formularios, contraste AA) | UX/UI / QA | `ux-ui-expert.md` |
 | **Estándares W3C** (Vistas sin `<html>`/`<body>`, HTML5 válido) | Frontend / QA | `frontend-bootstrap5.md` |
 | **Criterios de Aceptación superados al 100%** | QA & Reviewer | `.docs/HU-XX.md` |
+| **Pruebas automáticas sin fallas** (`bash tests/e2e/turnoplaner_e2e.sh`, y los casos nuevos de la HU agregados al script) | QA & Reviewer | `auth-security-filters.md` §7 |
 

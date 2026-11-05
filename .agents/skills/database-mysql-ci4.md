@@ -213,3 +213,19 @@ CREATE TABLE IF NOT EXISTS `coberturas` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
+---
+
+## Reglas del proyecto (revisión QA del 05/11/2026)
+
+1. **Dos caminos, el mismo esquema:** `database/turnoplaner.sql` (lo usa el grupo con XAMPP) y las migraciones de `app/Database/Migrations/` deben definir **exactamente** las mismas columnas, tipos, enums e índices. Toda HU que cambia la base actualiza los dos y lo prueba en una base temporal.
+2. **Seeder obligatorio:** sin registro público, una base sin ADMIN es inutilizable. `app/Database/Seeds/UsuarioSeeder.php` crea los mismos usuarios de prueba que el SQL y es idempotente (no duplica DNIs).
+
+   ```
+   C:\xampp\php\php.exe spark migrate
+   C:\xampp\php\php.exe spark db:seed UsuarioSeeder
+   ```
+3. **Acentos:** el script empieza con `SET NAMES utf8mb4;`. Sin eso, la consola de Windows importa "Críticos" como texto corrupto y la pantalla muestra caracteres raros.
+4. **Largo de columnas = reglas de validación:** si la validación permite `max_length[100]`, la columna es `VARCHAR(100)` o más. Si la columna es más corta, MySQL en modo estricto rechaza el INSERT.
+5. **Estados:** `usuarios.estado` es `ENUM('ACTIVO','BAJA')`. "Pendiente de activación" se deriva de `debe_cambiar_pass = 1`, no es un estado.
+6. **Bajas con `withDeleted()` / `onlyDeleted()`:** con `$useSoftDeletes = true`, `find()` y `findAll()` ocultan las bajas. Para el login (decir "cuenta inactiva"), editar o reactivar un registro dado de baja, usar `withDeleted()`.
+7. **`deleted_at` no está en `$allowedFields`:** para reactivar, limpiar `deleted_at` con el Query Builder (`$this->builder()->where('id', $id)->update([...])`), no con `update()` del modelo, que lo ignora en silencio.

@@ -1,37 +1,54 @@
 <?= $this->extend('layouts/main') ?>
 
 <?= $this->section('contenido') ?>
-<section class="login">
-    <div class="login__caja">
-        <div class="login__marca">
-            <img class="login__logo" src="<?= base_url('img/logo.png') ?>" alt="Logo de TurnoPlaner" width="96" height="96">
-            <h1>TurnoPlaner</h1>
-            <p>Sistema de turnos rotativos de enfermeria</p>
+<section class="login d-flex align-items-center justify-content-center">
+    <div class="card shadow-sm border-0 rounded-3 overflow-hidden w-100 login__caja">
+
+        <div class="card-header tp-card-header text-center py-4 px-4">
+            <img class="login__logo mb-2" src="<?= base_url('img/logo.png') ?>" alt="Logo TurnoPlaner" width="96" height="96">
+            <h1 class="h4 mb-0 fw-semibold text-white">TurnoPlaner</h1>
+            <p class="mb-0 small subtitulo">Turnos rotativos de enfermería</p>
         </div>
 
-        <form id="form-login" method="post" action="<?= base_url('login') ?>" novalidate>
-            <?= csrf_field() ?>
+        <div class="card-body p-4">
+            <!-- Alertas dentro de la tarjeta (el controlador pasa alertasEnVista = true) -->
+            <?= $this->include('partials/alertas') ?>
 
-            <div class="campo">
-                <label for="usuario">Usuario (DNI o email)</label>
-                <input type="text" id="usuario" name="usuario" placeholder="Ej: 30123456"
-                       autocomplete="username" autofocus>
-                <small class="campo__ayuda">Usuario entregado por el administrador. Por ahora el login no valida.</small>
-            </div>
+            <form action="<?= base_url('login') ?>" method="post" class="needs-validation" novalidate data-enviando="Ingresando...">
+                <?= csrf_field() ?>
 
-            <div class="campo">
-                <label for="password">Contrasena</label>
-                <input type="password" id="password" name="password" placeholder="********"
-                       autocomplete="current-password">
-            </div>
+                <div class="form-floating mb-3">
+                    <input type="text" class="form-control<?= clase_invalido('identificador') ?>" id="identificador" name="identificador"
+                           placeholder="Email o DNI" value="<?= esc(old('identificador', null, false)) ?>"
+                           autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="150" required autofocus data-mensaje="Ingrese su email o DNI."
+                           aria-describedby="ayuda-identificador">
+                    <label for="identificador">Email o DNI *</label>
+                    <?= feedback_campo('identificador') ?>
+                </div>
+                <div id="ayuda-identificador" class="form-text mt-n2 mb-3">El DNI puede ir con o sin puntos. Ej: 30.123.456</div>
 
-            <button type="submit" class="boton boton--principal boton--ancho">Ingresar</button>
-        </form>
+                <div class="input-group mb-4 has-validation">
+                    <div class="form-floating<?= clase_invalido('password') ?>">
+                        <input type="password" class="form-control<?= clase_invalido('password') ?>" id="password" name="password"
+                               placeholder="Contraseña" autocomplete="current-password" maxlength="72" required data-mensaje="Ingrese su contraseña.">
+                        <label for="password">Contraseña *</label>
+                    </div>
+                    <button class="btn btn-outline-secondary btn-ojo" type="button" data-mostrar-clave="#password" aria-label="Mostrar contraseña">
+                        <i class="bi bi-eye" aria-hidden="true"></i>
+                    </button>
+                    <?= feedback_campo('password') ?>
+                </div>
 
-        <p class="login__pie">
-            Las cuentas las crea el administrador del hospital.<br>
-            Si no tenes usuario o no recordas la contrasena, pedila a la coordinacion.
-        </p>
+                <button type="submit" class="btn btn-tp w-100 py-2 fw-semibold shadow-sm">
+                    <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Ingresar
+                </button>
+            </form>
+
+            <p class="text-center small text-body-secondary mt-4 mb-0">
+                Las cuentas las crea la administración del hospital.<br>
+                Si no tiene usuario o no recuerda su contraseña, solicítelo a la coordinación.
+            </p>
+        </div>
     </div>
 </section>
 <?= $this->endSection() ?>

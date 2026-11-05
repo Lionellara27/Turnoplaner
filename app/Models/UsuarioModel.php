@@ -9,6 +9,23 @@ use App\Entities\Usuario;
 
 class UsuarioModel extends Model
 {
+    /**
+     * Especialidades de enfermería disponibles (HU-05, HU-06, HU-07).
+     * Única fuente para los selects de alta, edición y filtros.
+     */
+    public const ESPECIALIDADES = [
+        'Enfermería General',
+        'Cuidados Críticos / Terapia Intensiva (UTI)',
+        'Pediatría y Neonatología',
+        'Guardia y Emergencias',
+        'Quirófano / Centro Quirúrgico',
+        'Salud Mental',
+        'Oncología',
+    ];
+
+    /** Cantidad de filas por página en el listado de personal (HU-06). */
+    public const POR_PAGINA = 10;
+
     protected $table            = 'usuarios';
     protected $primaryKey       = 'id';
     protected $useAutoIncrement = true;
@@ -22,6 +39,7 @@ class UsuarioModel extends Model
         'matricula',
         'email',
         'telefono',
+        'domicilio',
         'password_hash',
         'rol',
         'especialidad',
@@ -37,25 +55,26 @@ class UsuarioModel extends Model
     protected $updatedField  = 'updated_at';
     protected $deletedField  = 'deleted_at';
 
-    // Reglas de validación internas del modelo
+    // Reglas de validación internas del modelo (segunda barrera, la primera está en el controlador)
     protected $validationRules = [
+        'id'                => 'permit_empty|is_natural_no_zero',
         'nombre'            => 'required|min_length[2]|max_length[100]',
         'apellido'          => 'required|min_length[2]|max_length[100]',
-        'dni'               => 'required|numeric|min_length[7]|max_length[10]|is_unique[usuarios.dni,id,{id}]',
+        'dni'               => 'required|regex_match[/^[0-9]{7,10}$/]|is_unique[usuarios.dni,id,{id}]',
         'matricula'         => 'permit_empty|regex_match[/^[a-zA-Z0-9\s\-\/]+$/]|max_length[20]|is_unique[usuarios.matricula,id,{id}]',
         'email'             => 'required|valid_email|max_length[150]|is_unique[usuarios.email,id,{id}]',
-        'carga_horaria_max' => 'permit_empty|is_natural_no_zero',
-        'rol'               => 'in_list[ADMIN,ENFERMERO]',
-        'estado'            => 'in_list[ACTIVO,BAJA,PENDIENTE]',
+        'telefono'          => 'permit_empty|max_length[30]',
+        'domicilio'         => 'permit_empty|max_length[150]',
+        'carga_horaria_max' => 'permit_empty|is_natural_no_zero|less_than_equal_to[80]',
+        'rol'               => 'permit_empty|in_list[ADMIN,ENFERMERO]',
+        'estado'            => 'permit_empty|in_list[ACTIVO,BAJA]',
     ];
 
     protected $validationMessages = [
         'dni' => [
-            'required'   => 'El número de DNI es obligatorio.',
-            'numeric'    => 'El DNI debe contener solo números.',
-            'min_length' => 'El DNI debe contener al menos 7 dígitos.',
-            'max_length' => 'El DNI no debe superar los 10 dígitos.',
-            'is_unique'  => 'Ya existe un usuario registrado con el número de DNI ingresado.',
+            'required'    => 'El número de DNI es obligatorio.',
+            'regex_match' => 'El DNI debe tener entre 7 y 10 números, sin puntos.',
+            'is_unique'   => 'Ya existe un usuario registrado con el número de DNI ingresado.',
         ],
         'matricula' => [
             'regex_match' => 'La matrícula solo puede contener letras, números, espacios, guiones y barras.',
@@ -78,6 +97,7 @@ class UsuarioModel extends Model
         ],
         'carga_horaria_max' => [
             'is_natural_no_zero' => 'La carga horaria máxima semanal debe ser un número entero mayor a cero.',
+            'less_than_equal_to' => 'La carga horaria máxima semanal no puede superar las 80 horas.',
         ],
     ];
 
@@ -87,58 +107,141 @@ class UsuarioModel extends Model
      */
     public function darDeBajaLogica(int $id): bool
     {
+        // Las dos escrituras van juntas: o se aplican ambas o ninguna.
+        $this->db->transStart();
         $this->update($id, ['estado' => 'BAJA']);
-        return (bool) $this->delete($id);
+        $this->delete($id);
+        $this->db->transComplete();
+
+        return $this->db->transStatus();
     }
 
     /**
-     * Reactivación de un usuario dado de baja.
+     * Reactivación de un usuario dado de baja (HU-08).
+     * deleted_at no está en $allowedFields, por eso se limpia con el Query Builder.
      */
     public function reactivar(int $id): bool
     {
-        return (bool) $this->update($id, [
-            'estado'     => 'ACTIVO',
-            'deleted_at' => null,
-        ]);
+        return $this->builder()
+            ->where($this->primaryKey, $id)
+            ->update([
+                'estado'     => 'ACTIVO',
+                'deleted_at' => null,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
     }
 
     /**
-     * Obtiene los usuarios activos con filtros opcionales de búsqueda.
+     * Listado de personal con búsqueda, filtros y paginación (HU-06).
+     *
+     * @param string $estado       'ACTIVO' (por defecto), 'PENDIENTE' (activos sin primer ingreso), 'BAJA' o 'TODOS'.
+     * @param string $especialidad Una de self::ESPECIALIDADES o vacío.
+     * @param string $busqueda     Texto libre: nombre, apellido, DNI o matrícula.
      *
      * @return Usuario[]
      */
-    public function obtenerActivosConFiltros(?string $estado = null, ?string $busqueda = null): array
+    public function listarPersonal(string $estado = 'ACTIVO', string $especialidad = '', string $busqueda = ''): array
     {
-        $builder = $this->builder();
-
-        if ($estado !== null && $estado !== '') {
-            $builder->where('estado', $estado);
+        // Las bajas tienen deleted_at, así que para verlas hay que incluir los registros "borrados" lógicamente.
+        if ($estado === 'BAJA') {
+            $this->onlyDeleted();
+        } elseif ($estado === 'TODOS') {
+            $this->withDeleted();
+        } elseif ($estado === 'PENDIENTE') {
+            $this->where('debe_cambiar_pass', 1);
         }
 
-        if ($busqueda !== null && $busqueda !== '') {
-            $builder->groupStart()
-                ->like('nombre', $busqueda)
-                ->orLike('apellido', $busqueda)
-                ->orLike('dni', $busqueda)
-                ->orLike('matricula', $busqueda)
-                ->orLike('email', $busqueda)
+        if ($especialidad !== '') {
+            $this->where('especialidad', $especialidad);
+        }
+
+        // Cada palabra debe aparecer en algún campo: "gomez maria" encuentra a "María Gómez".
+        $palabras = preg_split('/\s+/', trim($busqueda), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        foreach (array_slice($palabras, 0, 5) as $palabra) {
+            $this->groupStart()
+                ->like('nombre', $palabra)
+                ->orLike('apellido', $palabra)
+                ->orLike('dni', $palabra)
+                ->orLike('matricula', $palabra)
             ->groupEnd();
         }
 
-        return $this->where('deleted_at IS NULL')
-                    ->orderBy('apellido', 'ASC')
-                    ->findAll();
+        return $this->orderBy('apellido', 'ASC')
+            ->orderBy('nombre', 'ASC')
+            ->paginate(self::POR_PAGINA);
     }
 
     /**
-     * Busca un usuario por DNI o Correo electrónico para autenticación.
+     * Busca un usuario por DNI o correo para autenticación (HU-02).
+     * Incluye las bajas lógicas para poder informar "cuenta inactiva" en lugar de "credenciales inválidas".
      */
     public function buscarPorIdentificador(string $identificador): ?Usuario
     {
-        return $this->groupStart()
-                    ->where('email', $identificador)
-                    ->orWhere('dni', $identificador)
-                ->groupEnd()
-                ->first();
+        $identificador = self::normalizarIdentificador($identificador);
+
+        if ($identificador === '') {
+            return null;
+        }
+
+        return $this->withDeleted()
+            ->groupStart()
+                ->where('email', $identificador)
+                ->orWhere('dni', $identificador)
+            ->groupEnd()
+            ->first();
+    }
+
+    /**
+     * Normaliza lo que el usuario escribe en "Email o DNI":
+     * un DNI con puntos o espacios ("30.123.456") queda "30123456"; un email queda en minúsculas.
+     */
+    public static function normalizarIdentificador(string $identificador): string
+    {
+        $identificador = trim($identificador);
+
+        if (preg_match('/^[0-9.\s]+$/', $identificador) === 1) {
+            return (string) preg_replace('/[.\s]/', '', $identificador);
+        }
+
+        return mb_strtolower($identificador);
+    }
+
+    /**
+     * Enfermeros/as activos, para asignarles turnos (HU-13). Ordenados por apellido.
+     *
+     * @return list<Usuario>
+     */
+    public function enfermerosActivos(): array
+    {
+        return $this->where('rol', 'ENFERMERO')
+            ->where('estado', 'ACTIVO')
+            ->orderBy('apellido', 'ASC')
+            ->orderBy('nombre', 'ASC')
+            ->findAll();
+    }
+
+    /**
+     * Busca un usuario por id incluyendo bajas lógicas (para editar, restablecer o reactivar).
+     */
+    public function buscarIncluyendoBajas(int $id): ?Usuario
+    {
+        return $this->withDeleted()->find($id);
+    }
+
+    /**
+     * Genera una contraseña temporal legible y segura (HU-04 y HU-05).
+     * Evita caracteres ambiguos (0/O, 1/l/I) para que el admin pueda dictarla sin errores.
+     */
+    public static function generarClaveTemporal(int $largo = 10): string
+    {
+        $alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+        $clave    = '';
+        $maximo   = strlen($alfabeto) - 1;
+
+        for ($i = 0; $i < $largo; $i++) {
+            $clave .= $alfabeto[random_int(0, $maximo)];
+        }
+
+        return $clave;
     }
 }

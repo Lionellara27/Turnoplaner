@@ -28,7 +28,7 @@ class CreateUsuariosTable extends Migration
                 ],
                 'dni' => [
                     'type'       => 'VARCHAR',
-                    'constraint' => 20,
+                    'constraint' => 10,
                 ],
                 'matricula' => [
                     'type'       => 'VARCHAR',
@@ -59,15 +59,13 @@ class CreateUsuariosTable extends Migration
                     'null'       => true,
                 ],
                 'carga_horaria_max' => [
-                    'type'       => 'INT',
-                    'constraint' => 10,
+                    'type'       => 'TINYINT',
                     'unsigned'   => true,
                     'null'       => true,
-                    'default'    => 40,
                 ],
                 'estado' => [
                     'type'       => 'ENUM',
-                    'constraint' => ['ACTIVO', 'BAJA', 'PENDIENTE'],
+                    'constraint' => ['ACTIVO', 'BAJA'], // sin registro publico no existe el estado PENDIENTE
                     'default'    => 'ACTIVO',
                 ],
                 'debe_cambiar_pass' => [

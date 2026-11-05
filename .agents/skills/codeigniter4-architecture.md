@@ -69,7 +69,7 @@ $routes->group('admin', ['filter' => ['auth', 'role:ADMIN']], static function ($
    - En caso de error, retornar redirección con datos de entrada y errores de validación:
      ```php
      if (! $this->validate($rules)) {
-         return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+         return $this->volverConErrores($this->validator->getErrors()); // no guarda contraseñas en sesión
      }
      ```
 4. **Respuestas:**
@@ -118,7 +118,7 @@ class Usuarios extends BaseController
         $rules = [
             'nombre'           => 'required|min_length[2]|max_length[100]',
             'apellido'         => 'required|min_length[2]|max_length[100]',
-            'dni'              => 'required|numeric|is_unique[usuarios.dni]',
+            'dni'              => 'required|regex_match[/^[0-9]{7,10}$/]|is_unique[usuarios.dni]', // numeric acepta -1234567 y 1234567.5
             'matricula'        => 'required|alpha_numeric_space|is_unique[usuarios.matricula]',
             'mail'             => 'required|valid_email|is_unique[usuarios.mail]',
             'carga_horaria_max'=> 'required|is_natural_no_zero',
@@ -126,7 +126,7 @@ class Usuarios extends BaseController
         ];
 
         if (! $this->validate($rules)) {
-            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+            return $this->volverConErrores($this->validator->getErrors()); // no guarda contraseñas en sesión
         }
 
         $usuario = new Usuario($this->request->getPost());
@@ -296,3 +296,23 @@ class Usuario extends Entity
 3. **Escape obligatorio:** Todo dato dinámico renderizado debe escapar con `esc($variable)` para neutralizar XSS.
 4. **Mensajería Estándar:** Renderizar siempre bloques de mensajes de alerta (`session()->getFlashdata('errors')`, `session()->getFlashdata('success')`).
 
+---
+
+## Patrones obligatorios del proyecto (revisión QA del 05/11/2026)
+
+Utilidades de `app/Controllers/BaseController.php` que todo controlador nuevo debe usar:
+
+| Método | Para qué |
+| :--- | :--- |
+| `datosRecortados()` | POST con los textos recortados. **Validar sobre esto** con `$this->validateData($datos, $reglas)`, no con `$this->validate()`: si no, "    x" pasa un `min_length[5]` y se guarda "x". Las contraseñas no se recortan. |
+| `volverConErrores($errores, $destino = null, $tipo = 'errors')` | Reemplaza a `redirect()->back()->withInput()`. Vuelve con lo cargado **sin** contraseñas (`withInput()` guarda todo el POST en `writable/session/`). Con `$tipo = 'error'` muestra un mensaje general. |
+| `reglaTelefono(bool)`, `reglaDomicilio(bool)`, `reglasNuevaPassword()` | Reglas compartidas: la misma validación en todas las pantallas que piden ese dato. |
+
+Otras reglas:
+
+1. **Rutas con ID:** usar el comodín `(:id)` (hasta 9 dígitos) definido en `Routes.php`, no `(:num)`: un número enorme con parámetro `int` da error 500 en vez de 404.
+2. **Mensajes al usuario:** `success` para lo que se hizo, `info` para "no había cambios" o "ya estaba dado de baja", `error` para lo que falló. Nunca un mensaje de éxito cuando no se hizo nada.
+3. **Acciones idempotentes:** antes de dar de baja o reactivar, verificar el estado actual; dos escrituras relacionadas van en una transacción (`transStart()` / `transComplete()`).
+4. **Entity::hasChanged():** compara con `!==`. La base devuelve números como string (`numberNative = false`), así que al hacer `fill()` asignar strings (`(string) (int) $valor`) o siempre dará "hubo cambios".
+5. **Vistas reutilizables por comandos o tests** (por ejemplo `spark test:hu05` renderiza `view('admin/users/create')` sin pasar todo): definir valores por defecto con `??` al principio de la vista.
+6. **Helpers globales** de la interfaz en `app/Config/Autoload.php` (`$helpers = ['form_ui']`), no solo en el BaseController, así funcionan también en comandos `spark`.

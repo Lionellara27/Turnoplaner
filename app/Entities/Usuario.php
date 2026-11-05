@@ -68,5 +68,15 @@ class Usuario extends Entity
     {
         return $this->attributes['email'] ?? null;
     }
+
+    /**
+     * Huella de las credenciales actuales. Se guarda en la sesión al iniciarla;
+     * si la contraseña cambia (restablecimiento o cambio desde otra sesión),
+     * la huella deja de coincidir y AuthFilter cierra esa sesión.
+     */
+    public function huellaCredenciales(): string
+    {
+        return substr(hash('sha256', (string) ($this->attributes['password_hash'] ?? '')), 0, 32);
+    }
 }
 

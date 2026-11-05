@@ -22,3 +22,13 @@
   2. Suma las horas ya asignadas al enfermero en esa semana más la duración del nuevo turno; si supera su **Carga horaria máxima contratada**, emite alerta/rechazo explicando el motivo.
 * **Gestión de turnos existentes:** Permite eliminar o reasignar un turno futuro ya cargado.
 
+---
+
+## Notas de implementación (05/11/2026)
+
+* Cada asignación guarda `inicio` y `fin` completos (fecha y hora). Un turno de 22:00 a 06:00 termina al día siguiente, y si después se edita el horario del tipo de turno, los turnos ya asignados no cambian.
+* **Superposición:** se compara contra todos los turnos del enfermero/a por fecha y hora real (la noche del lunes contra la mañana del martes). Terminar 06:00 y empezar 06:00 no es superposición.
+* **Carga horaria:** semana de lunes a domingo; el turno cuenta en la semana del día en que empieza. Se rechaza explicando la cuenta (horas ya asignadas + turno nuevo contra el máximo contratado).
+* Solo se asigna, reasigna o elimina de hoy en adelante. Eliminar es baja lógica (`deleted_at`).
+* También incorpora el control de HU-12: un tipo de turno o un sector con asignaciones futuras no se puede dar de baja.
+* Se asigna desde el botón "Asignar" de cada celda de la cuadrícula (HU-14), que precarga sector, turno y fecha.

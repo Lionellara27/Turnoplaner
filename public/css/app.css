@@ -1,26 +1,34 @@
 /* ==========================================================
-   TurnoPlaner - estilos base (CSS plano, sin frameworks)
+   TurnoPlaner - estilos propios sobre Bootstrap 5
+   Fuente de verdad de la estetica: .docs/DESIGN.md
    ========================================================== */
 
 :root {
-    /* Paleta definida en .docs/DESIGN.md (fuente de verdad). Si cambia alla, cambia aca. */
-    --color-primario: #43ab92;
-    --color-primario-oscuro: #307f6d;
+    /* Paleta definida en .docs/DESIGN.md. Si cambia alla, cambia aca. */
+    --color-primario: #43ab92;          /* acento: bordes, iconos, foco, detalles */
+    --color-primario-oscuro: #307f6d;   /* fondos con texto blanco y links (contraste AA 4.8:1) */
+    --color-primario-hover: #266657;    /* hover de botones primarios */
+    --color-primario-suave: #e6f4f0;    /* fondos claros de realce */
     --color-fondo: #f3f6f8;
     --color-blanco: #ffffff;
     --color-texto: #1e2a32;
     --color-texto-suave: #5c6b75;
     --color-borde: #d6dee4;
     --color-ok: #2e7d32;
+    --color-ok-fondo: #e8f5e9;
     --color-error: #c62828;
+    --color-error-fondo: #ffebee;
     --radio: 8px;
     --sombra: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+    /* Bootstrap toma estos valores para links y foco */
+    --bs-link-color: var(--color-primario-oscuro);
+    --bs-link-color-rgb: 48, 127, 109;
+    --bs-link-hover-color: var(--color-primario-hover);
+    --bs-link-hover-color-rgb: 38, 102, 87;
 }
 
-* { box-sizing: border-box; }
-
 body {
-    margin: 0;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     background: var(--color-fondo);
     color: var(--color-texto);
@@ -29,81 +37,389 @@ body {
     flex-direction: column;
 }
 
-a { color: var(--color-primario); }
+/* Foco visible (WCAG 2.4.7): contorno de 2 px.
+   Sobre superficies claras va en verde oscuro (4.8:1); sobre superficies verdes, en blanco. */
+.btn:focus-visible,
+.form-control:focus,
+.form-select:focus,
+.page-link:focus-visible,
+a:focus-visible,
+.navbar-toggler:focus-visible {
+    outline: 2px solid var(--color-primario-oscuro);
+    outline-offset: 2px;
+    box-shadow: none;
+}
+.form-control:focus,
+.form-select:focus { border-color: var(--color-primario-oscuro); }
+.barra .nav-link:focus-visible,
+.barra .navbar-brand:focus-visible,
+.barra .btn:focus-visible,
+.barra .navbar-toggler:focus-visible,
+.tp-card-header .btn:focus-visible,
+.tp-card-header a:focus-visible {
+    outline-color: var(--color-blanco);
+}
+
+/* Fila con hover suave. Los textos secundarios usan text-body-secondary (6.5:1 sobre este fondo). */
+.table-hover > tbody > tr:hover > * { --bs-table-bg-state: #f4faf8; }
 
 /* ---------- Barra superior ---------- */
 .barra {
-    background: var(--color-primario);
-    color: var(--color-blanco);
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    padding: 10px 24px;
+    background: var(--color-primario-oscuro);
+    border-bottom: 3px solid var(--color-primario);
     box-shadow: var(--sombra);
 }
-.barra__marca { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; }
-.barra__logo {
-    width: 34px; height: 34px; border-radius: 50%;
-    background: var(--color-blanco); padding: 2px;
+.barra .navbar-brand { color: var(--color-blanco); font-weight: 600; }
+/* Sobre el verde, texto blanco pleno: la jerarquía se marca con peso, no con opacidad (contraste AA). */
+.barra .nav-link { color: var(--color-blanco); }
+.barra .nav-link:hover,
+.barra .nav-link:focus { color: var(--color-blanco); }
+.barra .nav-link.active {
+    color: var(--color-blanco);
+    font-weight: 600;
+    box-shadow: inset 0 -3px 0 var(--color-primario);
 }
-.barra__nav { flex: 1; display: flex; gap: 16px; }
-.barra__nav a { color: var(--color-blanco); text-decoration: none; opacity: 0.9; }
-.barra__nav a:hover { opacity: 1; text-decoration: underline; }
-.barra__usuario { display: flex; align-items: center; gap: 12px; font-size: 0.9rem; }
+.barra__logo {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--color-blanco);
+    padding: 2px;
+}
+.barra__usuario { color: var(--color-blanco); font-size: 0.9rem; }
 
 /* ---------- Contenido ---------- */
-.contenido { flex: 1; width: 100%; max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+.contenido { flex: 1; width: 100%; }
 .pie { text-align: center; color: var(--color-texto-suave); font-size: 0.8rem; padding: 16px; }
-.texto-secundario { color: var(--color-texto-suave); }
 
-/* ---------- Alertas ---------- */
-.alerta { padding: 12px 16px; border-radius: var(--radio); margin-bottom: 16px; border: 1px solid; }
-.alerta--ok { background: #e8f5e9; border-color: var(--color-ok); color: var(--color-ok); }
-.alerta--error { background: #ffebee; border-color: var(--color-error); color: var(--color-error); }
-
-/* ---------- Botones ---------- */
-.boton {
-    display: inline-block; padding: 8px 14px; border-radius: var(--radio);
-    border: 1px solid var(--color-blanco); background: transparent;
-    color: var(--color-blanco); text-decoration: none; cursor: pointer; font-size: 0.9rem;
+/* ---------- Encabezado de tarjeta institucional (DESIGN.md 4.1) ---------- */
+.tp-card-header {
+    background-color: var(--color-primario-oscuro);
+    border-bottom: 3px solid var(--color-primario);
+    color: var(--color-blanco);
 }
-.boton--chico { padding: 4px 10px; font-size: 0.8rem; }
-.boton--principal { background: var(--color-primario); border-color: var(--color-primario); }
-.boton--principal:hover { background: var(--color-primario-oscuro); }
-.boton--ancho { width: 100%; padding: 12px; font-size: 1rem; }
+.tp-card-header .subtitulo { color: var(--color-blanco); }
 
-/* ---------- Formularios ---------- */
-.campo { margin-bottom: 16px; }
-.campo label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; }
-.campo input {
-    width: 100%; padding: 10px 12px; border: 1px solid var(--color-borde);
-    border-radius: var(--radio); font-size: 1rem;
+/* ---------- Boton principal (DESIGN.md 4.2) ---------- */
+.btn-tp {
+    --bs-btn-color: var(--color-blanco);
+    --bs-btn-bg: var(--color-primario-oscuro);
+    --bs-btn-border-color: var(--color-primario-oscuro);
+    --bs-btn-hover-color: var(--color-blanco);
+    --bs-btn-hover-bg: var(--color-primario-hover);
+    --bs-btn-hover-border-color: var(--color-primario-hover);
+    --bs-btn-active-color: var(--color-blanco);
+    --bs-btn-active-bg: var(--color-primario-hover);
+    --bs-btn-active-border-color: var(--color-primario-hover);
+    --bs-btn-disabled-color: var(--color-blanco);
+    --bs-btn-disabled-bg: var(--color-primario-oscuro);
+    --bs-btn-disabled-border-color: var(--color-primario-oscuro);
+    --bs-btn-focus-shadow-rgb: 67, 171, 146;
 }
-.campo input:focus { outline: 2px solid var(--color-primario); border-color: var(--color-primario); }
-.campo input.invalido { border-color: var(--color-error); }
-.campo__ayuda { display: block; color: var(--color-texto-suave); font-size: 0.8rem; margin-top: 4px; }
-.campo__error { display: block; color: var(--color-error); font-size: 0.8rem; margin-top: 4px; }
 
-/* ---------- Login ---------- */
-.login { display: flex; justify-content: center; align-items: center; min-height: 70vh; }
-.login__caja {
-    background: var(--color-blanco); padding: 32px; border-radius: 12px;
-    box-shadow: var(--sombra); width: 100%; max-width: 400px;
+/* ---------- Alertas (DESIGN.md 4.3) ---------- */
+.alerta { padding: 12px 16px; border-radius: var(--radio); border: 1px solid; }
+.alerta--ok { background: var(--color-ok-fondo); border-color: var(--color-ok); color: var(--color-ok); }
+.alerta--error { background: var(--color-error-fondo); border-color: var(--color-error); color: var(--color-error); }
+.alerta--info { background: #e7f1f8; border-color: #1f5f8b; color: #1f5f8b; } /* 6.0:1 */
+.alerta--aviso { background: #fff4d6; border-color: #8a5a00; color: #8a5a00; } /* 5.4:1 - notas fijas como "este sector esta dado de baja" */
+.alerta--error a { color: var(--color-error); font-weight: 600; }
+
+/* Tarjeta de credenciales temporales (HU-04 / HU-05) */
+.credenciales {
+    background: var(--color-primario-suave);
+    border: 1px solid var(--color-primario);
+    border-radius: var(--radio);
 }
-.login__marca { text-align: center; margin-bottom: 24px; }
-.login__logo { width: 96px; height: 96px; }
-.login__marca h1 { margin: 12px 0 4px; font-size: 1.5rem; }
-.login__marca p { margin: 0; color: var(--color-texto-suave); font-size: 0.9rem; }
-.login__pie { text-align: center; font-size: 0.85rem; margin-top: 20px; color: var(--color-texto-suave); }
-
-/* ---------- Tarjetas del inicio ---------- */
-.tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 24px; }
-.tarjeta { background: var(--color-blanco); padding: 20px; border-radius: var(--radio); box-shadow: var(--sombra); }
-.tarjeta h2 { margin: 0 0 8px; font-size: 1.1rem; }
-.tarjeta p { margin: 0 0 12px; color: var(--color-texto-suave); font-size: 0.9rem; }
-.etiqueta { font-size: 0.75rem; background: var(--color-fondo); padding: 2px 8px; border-radius: 10px; color: var(--color-texto-suave); }
-
-@media (max-width: 600px) {
-    .barra { flex-wrap: wrap; gap: 10px; }
-    .barra__nav { order: 3; width: 100%; }
+.credenciales code {
+    font-size: 1.05rem;
+    color: var(--color-texto);
+    background: var(--color-blanco);
+    padding: 2px 8px;
+    border-radius: 4px;
 }
+
+/* ---------- Login y activacion ---------- */
+.login { min-height: 75vh; }
+.login__caja { max-width: 420px; }
+/* Mismo tratamiento que el logo de la barra: circulo blanco detras (el PNG es transparente) */
+.login__logo {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background: var(--color-blanco);
+    padding: 6px;
+    box-shadow: var(--sombra);
+}
+
+/* Campos de solo lectura: se distinguen de los editables */
+.dato-lectura {
+    background: var(--color-fondo);
+    border: 1px dashed var(--color-borde);
+    border-radius: var(--radio);
+    padding: 8px 12px;
+}
+.dato-lectura dt { font-size: 0.8rem; font-weight: 500; color: var(--color-texto-suave); }
+.dato-lectura dd { margin-bottom: 0; font-weight: 600; }
+
+/* Requisitos de contrasena que se tildan en vivo */
+.requisitos li { color: var(--color-texto-suave); }
+.requisitos li.cumple { color: var(--color-ok); }
+.requisitos li.cumple .bi::before { content: "\f26a"; } /* bi-check-circle-fill */
+
+/* Boton de mostrar/ocultar contrasena: al menos 44 px de ancho para el dedo */
+.btn-ojo { min-width: 44px; }
+
+/* ---------- Tarjetas del panel ---------- */
+.tarjeta-indicador { border-left: 4px solid var(--color-primario); transition: box-shadow 0.15s ease; }
+.tarjeta-indicador:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1) !important; }
+
+/* Icono de cada indicador del panel: circulo con el color del estado (mismos colores que los badges) */
+.indicador__icono {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+}
+.indicador--ok        { border-left-color: var(--color-ok); }
+.indicador--ok .indicador__icono        { background: var(--color-ok-fondo); color: var(--color-ok); }   /* 4.6:1 */
+.indicador--pendiente { border-left-color: #d9a000; }
+.indicador--pendiente .indicador__icono { background: #fff4d6; color: #8a5a00; }                        /* 5.4:1 */
+.indicador--baja      { border-left-color: #9aa5ad; }
+.indicador--baja .indicador__icono      { background: #eceff1; color: var(--color-texto-suave); }      /* 4.8:1 */
+.tarjeta-indicador .numero { font-size: 2rem; font-weight: 700; line-height: 1; }
+
+/* Tamano tactil minimo en celular (skill ux-ui-expert 6.7) */
+@media (max-width: 576px) {
+    .btn { min-height: 44px; }
+    .btn-sm { min-height: 36px; }
+}
+
+/* ---------- Paginacion con la paleta (Bootstrap la trae en azul) ---------- */
+.pagination {
+    --bs-pagination-color: var(--color-primario-oscuro);
+    --bs-pagination-hover-color: var(--color-primario-hover);
+    --bs-pagination-focus-color: var(--color-primario-hover);
+    --bs-pagination-active-bg: var(--color-primario-oscuro);
+    --bs-pagination-active-border-color: var(--color-primario-oscuro);
+    --bs-pagination-focus-box-shadow: none;
+}
+
+/* ---------- Celular: botones de accion de formularios a lo ancho ---------- */
+@media (max-width: 575.98px) {
+    .flex-column.flex-sm-row > .btn { width: 100%; }
+}
+
+/* ==========================================================
+   Menu lateral (DESIGN.md 4.6)
+   - lg en adelante (>= 992 px): fijo a la izquierda, se puede achicar a solo iconos.
+   - Menos de 992 px: offcanvas de Bootstrap, se abre con las tres rayitas.
+   ========================================================== */
+:root { --alto-barra: 60px; --ancho-menu: 240px; --ancho-menu-compacto: 76px; }
+
+.barra { min-height: var(--alto-barra); }
+.min-w-0 { min-width: 0; } /* evita que tablas anchas empujen el layout dentro del flex */
+
+/* Bootstrap fuerza fondo transparente en offcanvas-lg desde 992 px: se vuelve a blanco */
+.menu-lateral { background-color: var(--color-blanco) !important; }
+.menu-lateral__seccion {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-texto-suave); /* 5.5:1 sobre blanco */
+    margin: 0.5rem 0.75rem 0.25rem;
+}
+.menu-lateral .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radio);
+    color: var(--color-texto);
+}
+.menu-lateral .nav-link .bi { font-size: 1.15rem; flex-shrink: 0; }
+.menu-lateral .nav-link:hover { background: var(--color-primario-suave); color: var(--color-texto); }
+.menu-lateral .nav-link.active {
+    background: var(--color-primario-suave);
+    color: var(--color-primario-hover);      /* 5.9:1 */
+    font-weight: 600;
+    box-shadow: inset 3px 0 0 var(--color-primario);
+}
+
+/* Cuerpo del menu: secciones arriba, "Mi cuenta" + "Cerrar sesion" abajo */
+.menu-lateral .menu-lateral__cuerpo {
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem;
+}
+.menu-lateral__pie {
+    margin-top: auto;               /* empuja el bloque al fondo del menu */
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-borde);
+}
+.menu-lateral__salir {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 44px;
+}
+
+/* Boton de achicar: redondo, clavado sobre la linea derecha del menu, a mitad de altura */
+.menu-lateral__achicar {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translate(50%, -50%);
+    z-index: 2;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--color-borde);
+    background: var(--color-blanco);
+    color: var(--color-primario-oscuro);
+    box-shadow: var(--sombra);
+    cursor: pointer;
+}
+.menu-lateral__achicar:hover { background: var(--color-primario-suave); border-color: var(--color-primario); }
+.menu-lateral__achicar:focus-visible { outline: 2px solid var(--color-primario-oscuro); outline-offset: 2px; }
+.menu-lateral__achicar .bi { transition: transform 0.2s ease; }
+
+@media (min-width: 992px) {
+    .menu-lateral {
+        width: var(--ancho-menu);
+        flex-shrink: 0;
+        border-right: 1px solid var(--color-borde);
+        position: sticky;
+        top: var(--alto-barra);
+        height: calc(100vh - var(--alto-barra));
+        overflow: visible;          /* deja asomar el boton de achicar sobre la linea */
+        transition: width 0.2s ease;
+    }
+    .menu-lateral .menu-lateral__cuerpo {
+        height: 100%;
+        overflow-y: auto;           /* el scroll va adentro, no en el aside */
+        overflow-x: hidden;
+    }
+
+    /* Menu compacto: solo iconos. El texto queda para lectores de pantalla y el title muestra el nombre. */
+    .menu-compacto .menu-lateral { width: var(--ancho-menu-compacto); }
+    .menu-compacto .menu-lateral .nav-link,
+    .menu-compacto .menu-lateral__salir { justify-content: center; }
+    .menu-compacto .menu-lateral__seccion { visibility: hidden; height: 0.5rem; margin: 0; }
+    .menu-compacto .menu-lateral__texto {
+        position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+        overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    .menu-compacto .menu-lateral__achicar .bi { transform: rotate(180deg); }
+}
+
+/* En celular el offcanvas ocupa la pantalla de alto: el pie queda abajo igual */
+@media (max-width: 991.98px) {
+    .menu-lateral .menu-lateral__cuerpo { flex-grow: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .menu-lateral,
+    .menu-lateral__achicar .bi { transition: none; }
+}
+
+/* ---------- Tipos de turno (HU-11 / HU-12) ---------- */
+/* Etiqueta del turno: el color lo define cada tipo de turno; el texto es blanco u oscuro segun el contraste
+   (TipoTurno::colorTexto). Unico caso con style inline permitido: solo variables CSS con el dato. */
+.etiqueta-turno {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    background: var(--color-turno, var(--color-primario-oscuro));
+    color: var(--color-turno-texto, var(--color-blanco));
+}
+
+/* Selector de color: cada opcion es un boton con el color y su nombre (no solo color) */
+.opcion-color {
+    background: var(--color-turno);
+    color: var(--color-turno-texto);
+    border: 2px solid transparent;
+    font-weight: 600;
+    min-height: 44px;
+}
+.opcion-color:hover { color: var(--color-turno-texto); border-color: var(--color-texto); } /* sin oscurecer: el ambar quedaria al limite de contraste */
+.btn-check:checked + .opcion-color {
+    background: var(--color-turno);
+    color: var(--color-turno-texto);
+    border-color: var(--color-texto);
+    box-shadow: 0 0 0 3px var(--color-blanco), 0 0 0 5px var(--color-texto);
+}
+.btn-check:checked + .opcion-color::before { content: "\f26a"; font-family: "bootstrap-icons"; margin-right: 0.35rem; }
+.btn-check:focus-visible + .opcion-color { outline: 2px solid var(--color-primario-oscuro); outline-offset: 4px; }
+
+/* Duracion calculada en vivo */
+.duracion-calculada {
+    display: inline-block;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radio);
+    background: var(--color-primario-suave);
+    color: var(--color-primario-hover);
+    font-weight: 600;
+}
+.duracion-calculada.es-error { background: var(--color-error-fondo); color: var(--color-error); }
+
+/* Descripciones en formularios: alto comodo dentro de form-floating */
+.form-floating > textarea.form-control { height: 6rem; }
+
+/* ---------- Planificador semanal (HU-14) ---------- */
+.cuadricula { table-layout: fixed; min-width: 880px; }
+.cuadricula th:first-child { width: 8.5rem; }
+.cuadricula .cobertura { white-space: normal; }
+.celda-turno__nombres li { line-height: 1.3; margin-bottom: 0.15rem; }
+.cuadricula td, .cuadricula th { padding: 0.5rem; }
+.cuadricula__hoy { background: var(--color-primario-suave) !important; }
+/* Dias pasados: fondo gris y la palabra "pasado" / candado. Nunca opacidad: bajaria el contraste por debajo de AA. */
+.cuadricula__pasado { background: var(--color-fondo) !important; }
+/* Links sobre el fondo de hoy: #307f6d daria 4.2:1; el tono mas oscuro da 5.9:1 */
+.cuadricula__hoy a:not(.btn), .dia-planificador--hoy a:not(.btn) { color: var(--color-primario-hover); }
+.dia-planificador--pasado > summary { cursor: pointer; background: var(--color-fondo); border-radius: var(--radio); }
+.dia-planificador--pasado[open] > summary { border-bottom: 1px solid var(--color-borde); border-radius: var(--radio) var(--radio) 0 0; }
+@media (min-width: 992px) { .w-lg-auto { width: auto !important; } }
+.dia-planificador--hoy { border-color: var(--color-primario) !important; border-width: 2px !important; }
+.dia-planificador--hoy > h2 { background: var(--color-primario-suave); }
+
+/* Estado de cobertura de cada celda: icono + texto, nunca solo color (contrastes medidos: 4.6, 5.4 y 4.9) */
+.cobertura {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.cobertura--ok      { background: var(--color-ok-fondo); color: var(--color-ok); }
+.cobertura--parcial { background: #fff4d6; color: #8a5a00; }
+.cobertura--vacio   { background: var(--color-error-fondo); color: var(--color-error); }
+.tarjeta-modulo:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1) !important; }
+
+/* Resumen de horas de la semana por enfermero/a (HU-14): barra + texto, nunca solo color */
+.carga-semana .progress { height: 0.5rem; }
+.carga-semana--ok .progress-bar       { background-color: var(--color-primario-oscuro); }
+.carga-semana--alto .progress-bar     { background-color: #8a5a00; }
+.carga-semana--completo .progress-bar { background-color: var(--color-error); }
+.carga-semana--completo { background: var(--color-error-fondo); }
+
+/* Boton para quitar a alguien de un turno dentro de la celda */
+.celda-turno__quitar { line-height: 1; vertical-align: baseline; }
+.celda-turno__quitar:hover { color: #8e1c1c !important; }

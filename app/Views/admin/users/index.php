@@ -1,176 +1,215 @@
+<?php
+/**
+ * HU-06: Consulta y búsqueda de personal (con acciones de HU-04, HU-07 y HU-08).
+ *
+ * @var list<\App\Entities\Usuario>       $usuarios
+ * @var \CodeIgniter\Pager\Pager          $pager
+ * @var array{estado:string, especialidad:string, q:string} $filtros
+ * @var list<string>                      $especialidades
+ */
+// Valores por defecto: la vista también se renderiza sin filtros ni paginación (por ejemplo, desde spark test:hu05).
+$usuarios       = $usuarios ?? [];
+$pager          = $pager ?? null;
+$filtros        = ($filtros ?? []) + ['estado' => 'ACTIVO', 'especialidad' => '', 'q' => ''];
+$especialidades = $especialidades ?? \App\Models\UsuarioModel::ESPECIALIDADES;
+
+$hayFiltros = $filtros['q'] !== '' || $filtros['especialidad'] !== '' || $filtros['estado'] !== 'ACTIVO';
+$total      = $pager !== null ? $pager->getTotal() : count($usuarios);
+?>
 <?= $this->extend('layouts/main') ?>
 
 <?= $this->section('contenido') ?>
-
-<!-- Mensajes Flash de Éxito y Error -->
-<?php if (session()->getFlashdata('success') || session()->getFlashdata('ok')): ?>
-  <div class="alert alert-success alert-dismissible fade show mb-4 border-0 shadow-sm" role="alert">
-    <div class="d-flex align-items-center">
-      <i class="bi bi-check-circle-fill me-2 fs-5"></i>
-      <div><?= esc(session()->getFlashdata('success') ?? session()->getFlashdata('ok')) ?></div>
-    </div>
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-  </div>
-<?php endif; ?>
-
-<?php if (session()->getFlashdata('error')): ?>
-  <div class="alert alert-danger alert-dismissible fade show mb-4 border-0 shadow-sm" role="alert">
-    <div class="d-flex align-items-center">
-      <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
-      <div><?= esc(session()->getFlashdata('error')) ?></div>
-    </div>
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-  </div>
-<?php endif; ?>
-
 <div class="card shadow-sm border-0 rounded-3 overflow-hidden">
-  
-  <!-- Encabezado con var(--color-primario) y logo oficial -->
-  <div class="card-header text-white py-3 px-4" style="background-color: var(--color-primario);">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-      <div class="d-flex align-items-center">
-        <div class="me-3">
-          <img src="<?= base_url('img/logo-64.png') ?>" alt="Logo TurnoPlaner" class="barra__logo">
+
+    <div class="card-header tp-card-header py-3 px-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center">
+                <div class="me-3">
+                    <img src="<?= base_url('img/logo-64.png') ?>" alt="Logo TurnoPlaner" class="barra__logo">
+                </div>
+                <div>
+                    <h1 class="h4 mb-0 fw-semibold text-white">Gestión de Personal de Enfermería</h1>
+                    <p class="mb-0 small subtitulo">Plantel y administración de legajos</p>
+                </div>
+            </div>
+            <a href="<?= base_url('admin/usuarios/crear') ?>" class="btn btn-light text-nowrap fw-semibold shadow-sm">
+                <i class="bi bi-person-plus-fill me-1" aria-hidden="true"></i>Dar de alta
+            </a>
         </div>
-        <div>
-          <h1 class="h4 mb-0 fw-semibold text-white">Gestión de Personal de Enfermería</h1>
-          <p class="mb-0 small text-white-50">Plantel activo y administración de legajos</p>
-        </div>
-      </div>
-      <div>
-        <a href="<?= base_url('admin/usuarios/crear') ?>" class="btn btn-light text-nowrap fw-semibold shadow-sm" style="color: var(--color-primario-oscuro, #307f6d);">
-          <i class="bi bi-person-plus-fill me-1"></i> Dar de Alta Enfermero/a
-        </a>
-      </div>
     </div>
-  </div>
 
-  <div class="card-body p-4 bg-white">
-    
-    <!-- Filtros de búsqueda -->
-    <form method="get" action="<?= base_url('admin/usuarios') ?>" class="row g-2 mb-4 align-items-center">
-      <div class="col-12 col-md-8 col-lg-6">
-        <div class="input-group">
-          <span class="input-group-text bg-light border-end-0">
-            <i class="bi bi-search text-muted"></i>
-          </span>
-          <input type="text" name="q" class="form-control border-start-0" placeholder="Buscar por apellido, nombre, DNI o matrícula..." value="<?= esc(service('request')->getGet('q')) ?>">
-          <button class="btn btn-outline-secondary" type="submit">Buscar</button>
-        </div>
-      </div>
-      <?php if (service('request')->getGet('q')): ?>
-        <div class="col-auto">
-          <a href="<?= base_url('admin/usuarios') ?>" class="btn btn-link text-decoration-none text-muted btn-sm">
-            <i class="bi bi-x-circle me-1"></i> Limpiar filtro
-          </a>
-        </div>
-      <?php endif; ?>
-    </form>
+    <div class="card-body p-4 bg-white">
 
-    <!-- Tabla Responsiva de Personal -->
-    <div class="table-responsive">
-      <table class="table table-hover align-middle border">
-        <thead class="table-light">
-          <tr>
-            <th scope="col" class="text-nowrap">Matrícula</th>
-            <th scope="col">Profesional</th>
-            <th scope="col">DNI</th>
-            <th scope="col">Contacto</th>
-            <th scope="col">Especialidad</th>
-            <th scope="col" class="text-center">Carga Hs</th>
-            <th scope="col" class="text-center">Estado</th>
-            <th scope="col" class="text-center">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php if (! empty($usuarios)): ?>
-            <?php foreach ($usuarios as $u): ?>
-              <tr>
-                <td class="fw-medium text-nowrap">
-                  <span class="badge bg-light text-dark border">
-                    <?= esc($u->matricula ?: 'S/D') ?>
-                  </span>
-                </td>
-                <td>
-                  <div class="fw-semibold text-dark"><?= esc($u->getNombreCompleto()) ?></div>
-                  <small class="text-muted"><?= esc($u->rol) ?></small>
-                </td>
-                <td class="text-nowrap"><?= esc($u->dni) ?></td>
-                <td>
-                  <div><a href="mailto:<?= esc($u->email) ?>" class="text-decoration-none small text-secondary"><?= esc($u->email) ?></a></div>
-                  <?php if (! empty($u->telefono)): ?>
-                    <small class="text-muted"><i class="bi bi-telephone me-1"></i><?= esc($u->telefono) ?></small>
-                  <?php endif; ?>
-                </td>
-                <td>
-                  <span class="small"><?= esc($u->especialidad ?: 'General') ?></span>
-                </td>
-                <td class="text-center">
-                  <span class="badge rounded-pill bg-info-subtle text-info-emphasis border border-info-subtle">
-                    <?= esc((string) ($u->carga_horaria_max ?? '-')) ?> hs
-                  </span>
-                </td>
-                <td class="text-center">
-                  <?php if ($u->estado === 'ACTIVO'): ?>
-                    <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">Activo</span>
-                  <?php elseif ($u->estado === 'PENDIENTE'): ?>
-                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Pendiente</span>
-                  <?php else: ?>
-                    <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><?= esc($u->estado) ?></span>
-                  <?php endif; ?>
-                </td>
-                <td class="text-center">
-                  <?php if ($u->rol !== 'ADMIN'): ?>
-                    <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalBaja<?= $u->id ?>" title="Dar de baja">
-                      <i class="bi bi-person-x"></i>
-                    </button>
+        <!-- Búsqueda y filtros -->
+        <form method="get" action="<?= base_url('admin/usuarios') ?>" class="row g-2 mb-3 align-items-end" role="search" aria-label="Buscar personal">
+            <div class="col-12 col-lg-5">
+                <label for="q" class="form-label small fw-semibold mb-1">Buscar</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light"><i class="bi bi-search" aria-hidden="true"></i></span>
+                    <input type="search" id="q" name="q" class="form-control" maxlength="100"
+                           placeholder="Nombre, apellido, DNI o matrícula" value="<?= esc($filtros['q']) ?>">
+                </div>
+            </div>
+            <div class="col-6 col-lg-2">
+                <label for="estado" class="form-label small fw-semibold mb-1">Estado</label>
+                <select id="estado" name="estado" class="form-select">
+                    <option value="ACTIVO" <?= $filtros['estado'] === 'ACTIVO' ? 'selected' : '' ?>>Activos</option>
+                    <option value="PENDIENTE" <?= $filtros['estado'] === 'PENDIENTE' ? 'selected' : '' ?>>Pendientes de activación</option>
+                    <option value="BAJA" <?= $filtros['estado'] === 'BAJA' ? 'selected' : '' ?>>Dados de baja</option>
+                    <option value="TODOS" <?= $filtros['estado'] === 'TODOS' ? 'selected' : '' ?>>Todos</option>
+                </select>
+            </div>
+            <div class="col-6 col-lg-3">
+                <label for="especialidad" class="form-label small fw-semibold mb-1">Especialidad</label>
+                <select id="especialidad" name="especialidad" class="form-select">
+                    <option value="">Todas</option>
+                    <?php foreach ($especialidades as $especialidad): ?>
+                        <option value="<?= esc($especialidad) ?>" <?= $filtros['especialidad'] === $especialidad ? 'selected' : '' ?>><?= esc($especialidad) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-12 col-lg-2 d-flex gap-2">
+                <button class="btn btn-outline-secondary flex-fill" type="submit"><i class="bi bi-funnel me-1" aria-hidden="true"></i>Filtrar</button>
+                <?php if ($hayFiltros): ?>
+                    <a href="<?= base_url('admin/usuarios') ?>" class="btn btn-outline-secondary" title="Limpiar filtros" aria-label="Limpiar filtros">
+                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                    </a>
+                <?php endif; ?>
+            </div>
+        </form>
 
-                    <!-- Modal de Confirmación de Baja Lógica (Sin DELETE Físico) -->
-                    <div class="modal fade" id="modalBaja<?= $u->id ?>" tabindex="-1" aria-labelledby="modalBajaLabel<?= $u->id ?>" aria-hidden="true">
-                      <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                          <div class="modal-header bg-danger text-white">
-                            <h5 class="modal-title h6" id="modalBajaLabel<?= $u->id ?>">
-                              <i class="bi bi-exclamation-triangle-fill me-1"></i> Confirmar Baja de Personal
-                            </h5>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-                          </div>
-                          <div class="modal-body text-start">
-                            <p class="mb-2">¿Está seguro de que desea dar de baja al/la profesional <strong><?= esc($u->getNombreCompleto()) ?></strong> (Matrícula: <?= esc($u->matricula) ?>)?</p>
-                            <div class="alert alert-warning py-2 mb-0 small">
-                              <i class="bi bi-info-circle me-1"></i> Esta acción aplicará una <strong>baja lógica</strong>, conservando todo el historial de turnos y asignaciones previas.
-                            </div>
-                          </div>
-                          <div class="modal-footer">
-                            <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                            <form action="<?= base_url('admin/usuarios/baja/' . $u->id) ?>" method="post" class="d-inline">
-                              <?= csrf_field() ?>
-                              <button type="submit" class="btn btn-danger btn-sm">Confirmar Baja</button>
-                            </form>
-                          </div>
+        <p class="small text-body-secondary mb-2" aria-live="polite">
+            <?= $total === 1 ? '1 resultado' : esc((string) $total) . ' resultados' ?>
+        </p>
+
+        <?php if ($usuarios === []): ?>
+            <!-- Estado vacío -->
+            <div class="text-center py-5 border rounded-3">
+                <i class="bi bi-inbox fs-1 text-body-secondary d-block mb-2" aria-hidden="true"></i>
+                <?php if ($hayFiltros): ?>
+                    <p class="fw-semibold mb-1">No hay resultados para esa búsqueda.</p>
+                    <p class="text-body-secondary small mb-3">Pruebe con otro nombre, DNI o quite los filtros.</p>
+                    <a href="<?= base_url('admin/usuarios') ?>" class="btn btn-outline-secondary btn-sm">Quitar filtros</a>
+                <?php else: ?>
+                    <p class="fw-semibold mb-1">Todavía no hay enfermeros/as cargados.</p>
+                    <p class="text-body-secondary small mb-3">Dé de alta al primer integrante del plantel.</p>
+                    <a href="<?= base_url('admin/usuarios/crear') ?>" class="btn btn-tp btn-sm">Dar de alta enfermero/a</a>
+                <?php endif; ?>
+            </div>
+        <?php else: ?>
+            <!-- Menos de 1200 px (celular, tablet y notebook chica con el menú lateral): una tarjeta por persona, con las acciones visibles -->
+            <ul class="list-unstyled row row-cols-1 row-cols-md-2 g-2 d-xl-none mb-0">
+                <?php foreach ($usuarios as $u): ?>
+                    <li class="col"><div class="border rounded-3 p-3 h-100">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-1">
+                            <div class="fw-semibold"><?= esc($u->getNombreCompleto()) ?></div>
+                            <?= view('admin/users/_estado', ['u' => $u]) ?>
                         </div>
-                      </div>
-                    </div>
-                  <?php else: ?>
-                    <span class="text-muted small"><i class="bi bi-shield-check" title="Usuario Administrador"></i></span>
-                  <?php endif; ?>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          <?php else: ?>
-            <tr>
-              <td colspan="8" class="text-center py-4 text-muted">
-                <i class="bi bi-inbox fs-3 d-block mb-2"></i>
-                No se encontraron enfermeros/as registrados con los criterios seleccionados.
-              </td>
-            </tr>
-          <?php endif; ?>
-        </tbody>
-      </table>
-    </div>
+                        <small class="d-block text-body-secondary text-break mb-2"><?= esc($u->email) ?></small>
+                        <dl class="row small mb-2 g-0">
+                            <dt class="col-5 fw-normal text-body-secondary">DNI</dt><dd class="col-7 mb-0"><?= esc($u->dni) ?></dd>
+                            <dt class="col-5 fw-normal text-body-secondary">Matrícula</dt><dd class="col-7 mb-0"><?= esc($u->matricula ?: '-') ?></dd>
+                            <dt class="col-5 fw-normal text-body-secondary">Especialidad</dt><dd class="col-7 mb-0"><?= esc($u->especialidad ?: '-') ?></dd>
+                            <dt class="col-5 fw-normal text-body-secondary">Carga máx.</dt><dd class="col-7 mb-0"><?= $u->carga_horaria_max !== null ? esc((string) $u->carga_horaria_max) . ' hs' : '-' ?></dd>
+                            <dt class="col-5 fw-normal text-body-secondary">Rol</dt><dd class="col-7 mb-0"><?= $u->esAdmin() ? 'Administrador' : 'Enfermero/a' ?></dd>
+                        </dl>
+                        <div class="d-flex flex-wrap gap-2">
+                            <?= view('admin/users/_acciones', ['u' => $u, 'conTexto' => true]) ?>
+                        </div>
+                    </div></li>
+                <?php endforeach; ?>
+            </ul>
 
-  </div>
+            <!-- 1200 px en adelante: tabla completa -->
+            <div class="table-responsive d-none d-xl-block">
+                <table class="table table-hover align-middle border mb-0">
+                    <caption class="visually-hidden">Listado del personal de enfermería</caption>
+                    <thead class="table-light">
+                        <tr>
+                            <!-- Columnas agrupadas para que entre junto al menú lateral (HU-06 pide todos estos datos) -->
+                            <th scope="col">Nombre y apellido <span class="fw-normal text-body-secondary">· Rol</span></th>
+                            <th scope="col" class="text-nowrap">DNI <span class="fw-normal text-body-secondary">· Matrícula</span></th>
+                            <th scope="col">Especialidad</th>
+                            <th scope="col" class="text-center text-nowrap">Carga máx.</th>
+                            <th scope="col">Estado</th>
+                            <th scope="col" class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($usuarios as $u): ?>
+                        <tr>
+                            <td>
+                                <div class="fw-semibold"><?= esc($u->getNombreCompleto()) ?></div>
+                                <small class="text-body-secondary d-block"><?= esc($u->email) ?></small>
+                                <small class="text-body-secondary"><?= $u->esAdmin() ? 'Administrador' : 'Enfermero/a' ?></small>
+                            </td>
+                            <td class="text-nowrap">
+                                <div><?= esc($u->dni) ?></div>
+                                <small class="text-body-secondary"><?= esc($u->matricula ?: 'Sin matrícula') ?></small>
+                            </td>
+                            <td><span class="small"><?= esc($u->especialidad ?: '-') ?></span></td>
+                            <td class="text-center text-nowrap"><?= $u->carga_horaria_max !== null ? esc((string) $u->carga_horaria_max) . ' hs' : '-' ?></td>
+                            <td><?= view('admin/users/_estado', ['u' => $u]) ?></td>
+                            <td class="text-end text-nowrap"><?= view('admin/users/_acciones', ['u' => $u, 'conTexto' => false]) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <nav class="mt-3 d-flex justify-content-center" aria-label="Paginación del listado">
+                <?= $pager !== null ? $pager->links('default', 'bootstrap_tp') : '' ?>
+            </nav>
+        <?php endif; ?>
+    </div>
 </div>
 
-<?= $this->endSection() ?>
+<!-- Modales de confirmación (fuera de la tabla para que el HTML sea válido) -->
+<?php foreach ($usuarios as $u): ?>
+    <?php if ($u->esEnfermero() && $u->estaActivo()): ?>
+        <div class="modal fade" id="modalRestablecer<?= (int) $u->id ?>" tabindex="-1" aria-labelledby="tituloRestablecer<?= (int) $u->id ?>" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title h6" id="tituloRestablecer<?= (int) $u->id ?>"><i class="bi bi-key me-1" aria-hidden="true"></i>Restablecer contraseña</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-2">¿Generar una contraseña temporal nueva para <strong><?= esc($u->getNombreCompleto()) ?></strong>?</p>
+                        <p class="small text-body-secondary mb-0">Su contraseña actual dejará de funcionar. Se le mostrará la clave nueva una sola vez para que se la entregue, y deberá cambiarla en su próximo ingreso.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <form action="<?= base_url('admin/usuarios/' . $u->id . '/restablecer') ?>" method="post" class="d-inline" data-enviando="Restableciendo...">
+                            <?= csrf_field() ?>
+                            <button type="submit" class="btn btn-tp">Restablecer</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
 
+        <div class="modal fade" id="modalBaja<?= (int) $u->id ?>" tabindex="-1" aria-labelledby="tituloBaja<?= (int) $u->id ?>" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title h6" id="tituloBaja<?= (int) $u->id ?>"><i class="bi bi-person-x me-1" aria-hidden="true"></i>Dar de baja</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-2">¿Dar de baja a <strong><?= esc($u->getNombreCompleto()) ?></strong> (matrícula <?= esc($u->matricula ?: '-') ?>)?</p>
+                        <p class="small text-body-secondary mb-0">No podrá ingresar ni ser asignado/a a turnos. Su historial se conserva y puede reactivarlo/a cuando quiera.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <form action="<?= base_url('admin/usuarios/baja/' . $u->id) ?>" method="post" class="d-inline" data-enviando="Dando de baja...">
+                            <?= csrf_field() ?>
+                            <button type="submit" class="btn btn-danger">Dar de baja</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+<?php endforeach; ?>
+<?= $this->endSection() ?>

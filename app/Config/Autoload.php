@@ -88,5 +88,5 @@ class Autoload extends AutoloadConfig
      *
      * @var list<string>
      */
-    public $helpers = [];
+    public $helpers = ['form_ui']; // helpers de formularios de TurnoPlaner (app/Helpers/form_ui_helper.php)
 }

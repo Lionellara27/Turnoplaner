@@ -77,12 +77,12 @@ class Filters extends BaseFilters
     public array $globals = [
         'before' => [
             // 'honeypot',
-            // 'csrf',
-            // 'invalidchars',
+            'csrf',         // protege todos los formularios POST (los formularios usan csrf_field())
+            'invalidchars', // rechaza caracteres de control e invalidos en la entrada
         ],
         'after' => [
             // 'honeypot',
-            // 'secureheaders',
+            'secureheaders', // X-Frame-Options y otras cabeceras: evita que el sistema se cargue dentro de un iframe ajeno
         ],
     ];
 

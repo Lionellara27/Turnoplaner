@@ -74,7 +74,7 @@ La consigna pide "un nivel estándar de usabilidad, proporcionando las indicacio
 3. **Indicaciones por campo:** `form-text` debajo de cada campo con formato especial:
    - DNI: "Solo números, sin puntos. Ej: 30123456".
    - Matrícula: "Ej: MP-1001".
-   - Carga horaria: "Horas semanales contratadas, entre 1 y 60".
+   - Carga horaria: "Horas semanales contratadas, entre 1 y 80. Ej: 36 o 40".
    - Horarios: "Formato 24 h. Si el turno termina al día siguiente, se calcula solo".
 4. **Tipos de input correctos:** `type="email"`, `type="tel"`, `inputmode="numeric"` en DNI, `type="time"` en horarios, `type="date"` en fechas. En el celular abre el teclado adecuado.
 5. **Error junto al campo:** además del bloque de errores general de `DESIGN.md`, marcar el campo con `is-invalid` y mostrar el mensaje en `invalid-feedback`.
@@ -95,17 +95,28 @@ La consigna pide "un nivel estándar de usabilidad, proporcionando las indicacio
 | Blanco sobre primario oscuro `#307f6d` | 4.8:1 | Cumple |
 | Error `#c62828` sobre `#ffebee` | 4.9:1 | Cumple |
 | Ok `#2e7d32` sobre `#e8f5e9` | 4.6:1 | Cumple |
-| **Blanco sobre primario `#43ab92`** | **2.8:1** | **No cumple** |
-| **Primario `#43ab92` sobre blanco (links)** | **2.8:1** | **No cumple** |
+| Primario oscuro `#307f6d` sobre blanco (links) | 4.8:1 | Cumple |
+| Info `#1f5f8b` sobre `#e7f1f8` | 6.0:1 | Cumple |
+| `.text-body-secondary` sobre fila con hover `#f4faf8` | 6.5:1 | Cumple |
+| **Blanco sobre primario `#43ab92`** | **2.8:1** | **No cumple: por eso los fondos con texto usan `#307f6d`** |
+| **Primario `#43ab92` sobre blanco** | **2.8:1** | **No cumple: nunca como color de texto o link** |
+| **Blanco al 85 % (`.text-white-50` o similar) sobre `#307f6d`** | **4.0:1** | **No cumple: sobre verde, blanco pleno** |
+| **`.text-secondary` (`#6c757d`) sobre fila con hover** | **4.0:1** | **No cumple: usar `.text-body-secondary`** |
+| **`#307f6d` sobre fondo general `#f3f6f8`** | **4.4:1** | **No cumple: links siempre sobre blanco** |
+| **`#307f6d` sobre verde suave `#e6f4f0`** (columna de hoy) | **4.2:1** | **No cumple: usar `#266657` (5.9:1)** |
+| Aviso `#8a5a00` sobre `#fff4d6` | 5.4:1 | Cumple |
+| **Cualquier texto con `opacity: .75`** | **2.9 a 3.5:1** | **No cumple: nunca bajar la opacidad para marcar "pasado" o "inactivo"** |
 
-   Ver la sección 9 (hallazgo abierto) sobre cómo tratar esto.
+   Regla práctica: si una combinación nueva no está en esta tabla, medirla antes de usarla (fórmula de luminancia relativa de WCAG; un script de Python de 10 líneas alcanza).
 
 2. **Nunca solo color:** todo estado comunicado con color lleva además texto o ícono. El semáforo de cobertura dice "Cubierto", "Justo" o "Descubierto 2/3", no solo verde, amarillo o rojo.
 3. **Labels reales:** cada input tiene `<label for>`; el placeholder no reemplaza al label.
-4. **Foco visible:** no quitar el `outline` de foco. Se debe poder recorrer todo con Tab.
-5. **Alertas anunciadas:** las alertas llevan `role="alert"` (ya está en los blueprints de `DESIGN.md`).
+4. **Foco visible:** no quitar el `outline` de foco. Se debe poder recorrer todo con Tab. El anillo por defecto de Bootstrap (azul al 25 %) es casi invisible sobre el verde: el proyecto usa un contorno de 2 px verde oscuro sobre fondos claros y blanco sobre fondos verdes (`app.css`).
+5. **Alertas anunciadas:** error con `role="alert"`, éxito e info con `role="status"` (ya resuelto en `partials/alertas.php`). Cambios dinámicos (por ejemplo "Contraseña copiada") en una región `aria-live="polite"`.
 6. **Imágenes:** `alt` descriptivo; el logo usa `alt="Logo TurnoPlaner"`.
 7. **Tamaño táctil:** en pantallas del enfermero, botones de al menos 44 × 44 px.
+8. **Sin cambios de contexto inesperados (WCAG 3.2.2):** un select no recarga la página al cambiar; los filtros se aplican con un botón. Con teclado, recorrer las opciones de un select dispara `change` en Chrome/Edge.
+9. **Íconos que son la única etiqueta de un botón:** llevan `<span class="visually-hidden">` con la acción y el nombre ("Editar a Juan Pérez"); `title` no alcanza.
 
 ---
 
@@ -114,7 +125,7 @@ La consigna pide "un nivel estándar de usabilidad, proporcionando las indicacio
 1. **Fechas y horas:** mostrar siempre `dd/mm/aaaa` y formato 24 h (`22:00`). Nunca el formato de MySQL (`2026-11-05`) en pantalla.
 2. **Turnos que cruzan la medianoche:** mostrar "22:00 → 06:00 (+1 día)" para que no parezca un error.
 3. **Cuadrícula semanal (HU-14):** filas = tipos de turno, columnas = días. Cada celda muestra los asignados y el indicador "asignados/mínimo" (ej. `2/3`). El día actual resaltado. En celular, la cuadrícula pasa a lista por día.
-4. **Semáforo de cobertura (HU-15):** usar los colores de alerta de `DESIGN.md` (ok, error) más un estado intermedio, siempre con texto. Ordenar primero lo descubierto.
+4. **Estados de cobertura (HU-14 y HU-15):** "Cubierto n/m", "Faltan k · n/m" y "Sin cubrir 0/m", con ícono y texto oculto completo para lectores de pantalla (`DESIGN.md` 4.8). En el tablero de cobertura, ordenar primero lo que no está cubierto.
 5. **Horas acumuladas:** al asignar un turno, mostrar "Horas esta semana: 32 / 36". Si la asignación supera el máximo, avisar antes de enviar.
 6. **Bajas lógicas:** modal de confirmación con el nombre del registro ("¿Dar de baja a Juan Pérez?") y aclaración de que se puede reactivar.
 7. **Identidad por rol:** el menú muestra solo las opciones del rol. Nunca mostrar un botón que lleva a "acceso denegado".
@@ -140,14 +151,24 @@ Antes de marcar como terminada una HU con interfaz, verificar:
 
 ---
 
-## 9. Hallazgos abiertos para el equipo
+## 9. Decisiones tomadas y aprendizajes (iteración HU-01 a HU-08, 05/11/2026)
 
-Estos puntos requieren una decisión del grupo y luego una actualización de `.docs/DESIGN.md`:
+Resueltos y reflejados en `.docs/DESIGN.md`:
 
-1. **Contraste del primario `#43ab92`.** El texto blanco sobre este verde (Card Header y botón principal) no cumple AA. Propuesta: mantener `#43ab92` como color de acento (bordes, íconos, fondos de texto grande) y usar `#307f6d` (`--color-primario-oscuro`) como fondo de botones con texto y como color de links. Hasta que el grupo decida, usar `fw-semibold` en esos textos para mejorar la legibilidad.
-2. **Tratamiento al usuario.** Hoy conviven "Por favor, revise" (usted) en `DESIGN.md` y "Tenes que iniciar sesion" (vos) en el filtro de autenticación. Elegir uno y aplicarlo en toda la app.
+1. **Contraste del primario.** `#43ab92` queda como acento; los fondos con texto blanco usan `#307f6d` (`.tp-card-header`, `.btn-tp`, barra). Sobre verde, texto blanco pleno.
+2. **Tratamiento al usuario:** usted en toda la interfaz.
+3. **Alertas centralizadas** en `partials/alertas.php`; el resumen de errores enlaza a cada campo y además el error se muestra junto al campo.
+4. **Un solo nombre por estado:** "Pendiente de activación" (cuenta activa que todavía no hizo su primer ingreso), igual en el panel, el badge y el filtro.
+5. **Mensajes neutros como info, no como éxito:** "No había cambios para guardar" usa `.alerta--info`.
+6. **Credenciales temporales** se muestran una sola vez en una tarjeta con botón Copiar; en http sin TLS se selecciona el texto.
+7. **Primer ingreso y Mi perfil piden lo mismo:** si teléfono y domicilio son obligatorios al activar la cuenta, también lo son al editarlos después (para el enfermero/a).
 
----
+Errores que la revisión encontró y conviene no repetir:
+
+- Escapar dos veces (`esc(old(...))`) corrompe apóstrofes y `&` al reenviar el formulario.
+- Un `<div>` dentro de `<dl>` solo puede contener `dt`/`dd` directos: usar `div.row > div.col > dl`.
+- `pattern` con `(` o `-` sin escapar dentro de `[...]` se ignora en navegadores modernos (flag `v`).
+- Logout dentro del menú colapsable: en celular el botón "siempre visible" queda escondido.
 
 ## 10. Plantilla de invocación
 
