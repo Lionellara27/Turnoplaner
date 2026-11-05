@@ -1,6 +1,8 @@
 # Estándares de Frontend con Bootstrap 5, CodeIgniter 4 y jQuery
 
-Esta guía técnica define las reglas obligatorias de maquetado, interfaz de usuario y comportamiento dinámico para **TurnoPlaner**, respetando estrictamente el sistema de diseño definido en `DESIGN.md`.
+Esta guía técnica define las reglas obligatorias de maquetado, interfaz de usuario y comportamiento dinámico para **TurnoPlaner**, respetando estrictamente el sistema de diseño definido en [`.docs/DESIGN.md`](../../.docs/DESIGN.md).
+
+> **Antes de escribir cualquier vista, estilo o script de interfaz:** leer `.docs/DESIGN.md` (estética, fuente de verdad) y `.agents/skills/ux-ui-expert.md` (flujo, usabilidad y accesibilidad). Si algo de esta guía contradice a `DESIGN.md`, gana `DESIGN.md`.
 
 ---
 

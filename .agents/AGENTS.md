@@ -4,7 +4,22 @@
 **Materia:** Proyecto de Software 2026 (UNRN)  
 **Rol:** Arquitectura de Software y Coaching Técnico  
 
-Este documento define los perfiles, responsabilidades, habilidades técnicas obligatorias y protocolos de invocación de los tres **Agentes Especializados de IA** que colaboran en el desarrollo vertical de cada Historia de Usuario (HU).
+Este documento define los perfiles, responsabilidades, habilidades técnicas obligatorias y protocolos de invocación de los cuatro **Agentes Especializados de IA** que colaboran en el desarrollo vertical de cada Historia de Usuario (HU).
+
+---
+
+## 0. Regla obligatoria para todo trabajo de Frontend
+
+**Toda tarea que cree o modifique una vista (`app/Views/`), un estilo (`public/css/`) o un script de interfaz (`public/js/`) debe consultar primero [`.docs/DESIGN.md`](../.docs/DESIGN.md).** Es la única fuente de verdad de la estética del sistema (colores, logo, componentes y blueprints).
+
+Orden de consulta obligatorio:
+
+1. `.docs/DESIGN.md` (estética).
+2. `.docs/HU-XX.md` (historia en curso).
+3. `.agents/skills/ux-ui-expert.md` (flujo, usabilidad, accesibilidad, checklist).
+4. `.agents/skills/frontend-bootstrap5.md` (implementación técnica).
+
+Si hay contradicción, **gana `.docs/DESIGN.md`**. Esta regla aplica a cualquier agente, incluso al Backend Agent si toca una vista.
 
 ---
 
@@ -15,7 +30,9 @@ Cada Historia de Usuario (`.docs/HU-XX.md`) debe construirse atravesando todas l
 ```mermaid
 flowchart LR
     A[Requerimiento HU-XX] --> B[Backend Agent]
-    B -->|Migración + Modelo + Controlador| C[Frontend Agent]
+    A --> U[UX/UI Agent]
+    U -->|Flujo + estados según DESIGN.md| C[Frontend Agent]
+    B -->|Migración + Modelo + Controlador| C
     C -->|Layout CI4 + Bootstrap 5 + AJAX| D[QA & Reviewer Agent]
     D -->|Auditoría DoR/DoD/W3C/Seguridad| E[Sprint Review / PR Listo]
 ```
@@ -61,8 +78,27 @@ flowchart LR
   6. Envolver tablas en `<div class="table-responsive">` con clases `.table .table-hover .align-middle` y botones de acción `.btn-sm`.
   7. Desarrollar interacciones asincrónicas con jQuery / AJAX, garantizando el envío del token CSRF (`<?= csrf_field() ?>` o headers HTTP) y el uso de modales nativos de Bootstrap 5 para confirmación de bajas lógicas.
 - **Skills Obligatorias:**
+  - [`.docs/DESIGN.md`](../.docs/DESIGN.md) (consultar **antes** de escribir cualquier línea de interfaz)
+  - `.agents/skills/ux-ui-expert.md`
   - `.agents/skills/frontend-bootstrap5.md`
-  - Referencia directa a [`.docs/DESIGN.md`]
+
+---
+
+### 2.4. UX/UI Expert Agent
+
+- **Nombre clave:** `UXUI-Agent`
+- **Propósito principal:** Diseñar el flujo y la experiencia de cada pantalla antes de maquetarla, y revisar las vistas terminadas desde la usabilidad y la accesibilidad. Consume `.docs/DESIGN.md` como fuente de verdad de la estética: no la redefine, la aplica y detecta dónde falta o falla.
+- **Responsabilidades clave:**
+  1. Definir para cada pantalla el usuario (Admin en escritorio o Enfermero/a en celular), la acción principal y los cuatro estados (vacío, cargando, error, éxito).
+  2. Garantizar la usabilidad de formularios que exige la cátedra: indicaciones por campo, requeridos marcados, errores junto al campo y datos conservados.
+  3. Verificar accesibilidad WCAG AA: contraste, labels, foco visible y estados que no dependan solo del color.
+  4. Aplicar los patrones del dominio (fechas `dd/mm/aaaa`, horas 24 h, turnos que cruzan la medianoche, semáforo de cobertura).
+  5. Proponer cambios a `.docs/DESIGN.md` cuando un caso no está cubierto o una regla falla.
+- **Skills Obligatorias:**
+  - [`.docs/DESIGN.md`](../.docs/DESIGN.md)
+  - `.agents/skills/ux-ui-expert.md`
+  - Archivo de requerimiento [`.docs/HU-XX.md`] de la tarea en curso.
+
 ---
 
 ### 2.3. QA & Code Reviewer Agent
@@ -85,6 +121,8 @@ flowchart LR
     - `.agents/skills/database-mysql-ci4.md`
     - `.agents/skills/auth-security-filters.md`
     - `.agents/skills/frontend-bootstrap5.md`
+    - `.agents/skills/ux-ui-expert.md` (checklist de la sección 8)
+    - [`.docs/DESIGN.md`](../.docs/DESIGN.md)
     - Archivo de requerimiento [`.docs/HU-XX.md`] de la tarea en curso.
 
 ---
@@ -104,10 +142,20 @@ Basándote en tus skills obligatorias (.agents/skills/codeigniter4-architecture.
 ### Plantilla 2: Invocación del Frontend Developer Agent
 ```markdown
 Actúa como **Frontend Developer Agent (Bootstrap & UI Expert)** para TurnoPlaner.
-Basándote en tu skill obligatoria (.agents/skills/frontend-bootstrap5.md), la guía de diseño @DESIGN.md y la historia @.docs/HU-XX.md:
+Primero lee la guía de diseño @.docs/DESIGN.md (fuente de verdad de la estética). Luego basate en tus skills (.agents/skills/ux-ui-expert.md y .agents/skills/frontend-bootstrap5.md) y en la historia @.docs/HU-XX.md:
 - Integra la siguiente vista [o maquetado Stitch] dentro del sistema de Layouts de CI4 (extendiendo layouts/main).
 - Respeta los colores institucionales (#43ab92), el encabezado de tarjeta con logo, los floating labels y las alertas flash.
 - Inclui protección CSRF y las interacciones necesarias con Bootstrap 5 / jQuery.
+```
+
+### Plantilla 2b: Invocación del UX/UI Expert Agent
+```markdown
+Actúa como **UX/UI Expert Agent** para TurnoPlaner.
+Antes de proponer nada, lee @.docs/DESIGN.md (estética, fuente de verdad), la historia @.docs/HU-XX.md
+y tu skill .agents/skills/ux-ui-expert.md.
+- Definí el flujo de la pantalla [nombre]: usuario, dispositivo, acción principal y los cuatro estados.
+- Proponé la estructura usando solo los blueprints de DESIGN.md.
+- Revisá la vista [archivo] con el checklist UX/UI y devolvé los ajustes concretos.
 ```
 
 ### Plantilla 3: Invocación del QA & Code Reviewer Agent
@@ -131,7 +179,8 @@ Antes de dar por completada una Historia de Usuario en el tablero Scrum, el equi
 | **Baja lógica estricta** (Sin DELETE físico, `$useSoftDeletes`) | Backend | `database-mysql-ci4.md` |
 | **Validaciones dobles** (Cliente HTML5 y Servidor CI4) | Backend / Frontend | `codeigniter4-architecture.md` |
 | **Seguridad CSRF y RBAC** (`csrf_field()`, filtros de rol) | Backend / QA | `auth-security-filters.md` |
-| **Sistema de Diseño y Colores** (Verde esmeralda, Card Header, Logo) | Frontend | `frontend-bootstrap5.md` |
+| **Sistema de Diseño y Colores** (Verde esmeralda, Card Header, Logo) | Frontend | `.docs/DESIGN.md` |
+| **Usabilidad y accesibilidad** (4 estados, formularios, contraste AA) | UX/UI / QA | `ux-ui-expert.md` |
 | **Estándares W3C** (Vistas sin `<html>`/`<body>`, HTML5 válido) | Frontend / QA | `frontend-bootstrap5.md` |
 | **Criterios de Aceptación superados al 100%** | QA & Reviewer | `.docs/HU-XX.md` |
 

@@ -3,8 +3,9 @@
    ========================================================== */
 
 :root {
-    --color-primario: #1f6f8b;
-    --color-primario-oscuro: #165466;
+    /* Paleta definida en .docs/DESIGN.md (fuente de verdad). Si cambia alla, cambia aca. */
+    --color-primario: #43ab92;
+    --color-primario-oscuro: #307f6d;
     --color-fondo: #f3f6f8;
     --color-blanco: #ffffff;
     --color-texto: #1e2a32;
