@@ -291,6 +291,56 @@ class AsignacionModel extends Model
         return $grilla;
     }
 
+    /**
+     * Turnos de un enfermero/a entre dos fechas (inclusive), con el sector y el tipo de turno (HU-17).
+     * Incluye sectores y tipos dados de baja después de asignar, para no perder la historia.
+     * Siempre filtra por el usuario recibido: el controlador le pasa el de la sesión, nunca uno de la URL.
+     *
+     * @return list<Asignacion>
+     */
+    public function delEnfermero(int $usuarioId, string $desde, string $hasta): array
+    {
+        return $this->select('asignaciones.*, sectores.nombre AS sector_nombre, sectores.es_critico AS sector_critico, '
+                . 'tipos_turno.nombre AS tipo_nombre, tipos_turno.color AS tipo_color')
+            ->join('sectores', 'sectores.id = asignaciones.sector_id')
+            ->join('tipos_turno', 'tipos_turno.id = asignaciones.tipo_turno_id')
+            ->where('asignaciones.usuario_id', $usuarioId)
+            ->where('asignaciones.fecha >=', $desde)
+            ->where('asignaciones.fecha <=', $hasta)
+            ->orderBy('asignaciones.inicio', 'ASC')
+            ->findAll();
+    }
+
+    /**
+     * Próximo turno del enfermero/a que todavía no terminó (el que está en curso o el siguiente).
+     */
+    public function proximoDelEnfermero(int $usuarioId, string $ahora): ?Asignacion
+    {
+        return $this->select('asignaciones.*, sectores.nombre AS sector_nombre, sectores.es_critico AS sector_critico, '
+                . 'tipos_turno.nombre AS tipo_nombre, tipos_turno.color AS tipo_color')
+            ->join('sectores', 'sectores.id = asignaciones.sector_id')
+            ->join('tipos_turno', 'tipos_turno.id = asignaciones.tipo_turno_id')
+            ->where('asignaciones.usuario_id', $usuarioId)
+            ->where('asignaciones.fin >', $ahora)
+            ->orderBy('asignaciones.inicio', 'ASC')
+            ->first();
+    }
+
+    /**
+     * Siguiente turno del enfermero/a que todavía no empezó (para el resumen "Siguiente" del cronograma).
+     */
+    public function siguienteProgramado(int $usuarioId, string $ahora): ?Asignacion
+    {
+        return $this->select('asignaciones.*, sectores.nombre AS sector_nombre, sectores.es_critico AS sector_critico, '
+                . 'tipos_turno.nombre AS tipo_nombre, tipos_turno.color AS tipo_color')
+            ->join('sectores', 'sectores.id = asignaciones.sector_id')
+            ->join('tipos_turno', 'tipos_turno.id = asignaciones.tipo_turno_id')
+            ->where('asignaciones.usuario_id', $usuarioId)
+            ->where('asignaciones.inicio >', $ahora)
+            ->orderBy('asignaciones.inicio', 'ASC')
+            ->first();
+    }
+
     /** 450 -> "7 h 30 min"; 480 -> "8 h". */
     public static function horasTexto(int $minutos): string
     {

@@ -48,6 +48,34 @@ abstract class BaseController extends Controller
         // $this->session = service('session');
     }
 
+    /**
+     * Parámetro GET siempre como texto. Si llega como arreglo (?vista[]=mes) se ignora:
+     * castear un arreglo a string tira "Array to string conversion" y un error 500.
+     */
+    protected function textoGet(string $clave): string
+    {
+        $valor = $this->request->getGet($clave);
+
+        return is_string($valor) ? trim($valor) : '';
+    }
+
+    /**
+     * Fecha "AAAA-MM-DD" válida (formato exacto, día que existe y año entre 2000 y 2100), o null.
+     * "2026-11-4", "2026-02-30" o "9999-12-31" no pasan.
+     */
+    protected function fechaValida(string $fecha): ?string
+    {
+        $d = \DateTimeImmutable::createFromFormat('!Y-m-d', $fecha);
+
+        if ($d === false || $d->format('Y-m-d') !== $fecha) {
+            return null;
+        }
+
+        $anio = (int) $d->format('Y');
+
+        return $anio >= 2000 && $anio <= 2100 ? $fecha : null;
+    }
+
     /** Campos que nunca se guardan en sesión al volver a un formulario con errores. */
     private const CAMPOS_SENSIBLES = ['password', 'password_confirm', 'password_actual', 'csrf_test_name'];
 

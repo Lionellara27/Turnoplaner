@@ -24,7 +24,7 @@ class Planificador extends BaseController
         $tipos    = (new TipoTurnoModel())->activos();
 
         $sector = null;
-        $pedido = (int) $this->request->getGet('sector');
+        $pedido = (int) $this->textoGet('sector');
         foreach ($sectores as $s) {
             if ((int) $s->id === $pedido) {
                 $sector = $s;
@@ -32,9 +32,7 @@ class Planificador extends BaseController
         }
         $sector ??= $sectores[0] ?? null;
 
-        $semana = (string) $this->request->getGet('semana');
-        $valida = DateTimeImmutable::createFromFormat('!Y-m-d', $semana);
-        $base   = $valida !== false && $valida->format('Y-m-d') === $semana ? $semana : date('Y-m-d');
+        $base   = $this->fechaValida($this->textoGet('semana')) ?? date('Y-m-d');
         $lunes  = AsignacionModel::lunesDe($base);
 
         $inicioSemana = new DateTimeImmutable($lunes);

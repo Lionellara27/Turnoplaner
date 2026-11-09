@@ -47,7 +47,7 @@ follow a login; check "Mensaje generico de credenciales" 'has "Usuario o contras
 r=$(login a admin@turnoplaner.local admin123); check "Admin con email entra al panel" '[[ $r == *"/inicio" ]]'
 get a inicio >/dev/null; check "Panel con saludo y menu admin" 'has "Hola, Admin" && has "admin/usuarios"'
 r=$(login e 30123456 enfermero123); check "Enfermera con DNI va a Mi cronograma" '[[ $r == *"/mi-cronograma" ]]'
-get e mi-cronograma >/dev/null; check "Cronograma con estado vacio" 'has "Todavía no tiene turnos"'
+get e mi-cronograma >/dev/null; check "Cronograma sin turnos: estado vacio de la semana y resumen sin turnos" 'has "No tiene turnos asignados en esta semana" && has "No tiene turnos programados por ahora" && ! has "0 turnos"'
 check "Menu de enfermera sin Personal" '! has "admin/usuarios"'
 r=$(get e admin/usuarios); check "Enfermera en URL de admin es rechazada" '[[ $r == *"/mi-cronograma" ]]'
 follow e mi-cronograma; check "Alerta de permisos insuficientes" 'has "Acceso denegado"'
@@ -319,6 +319,37 @@ check "AJAX: con el token del error anterior ya usado, el POST se rechaza (CSRF 
 get a "admin/planificador?sector=2&semana=$LUN" >/dev/null; cp "$D/out.html" "$D/pl.html"
 r=$(ajax admin/asignaciones/$NUEVA/eliminar "$D/pl.html")
 check "AJAX: quitar desde el modal" '[[ $r == 200 ]] && has "\"ok\": true" && [[ $(sql "SELECT deleted_at IS NOT NULL FROM turnoplaner.asignaciones WHERE id=$NUEVA") == "1" ]]'
+
+echo "== HU-17 Mi cronograma"
+login z juan.perez@turnoplaner.local Nueva2026 >/dev/null
+get z "mi-cronograma?vista=semana&fecha=$LUN" >/dev/null
+check "Semana: muestra su turno con fecha, sector, turno y horario" 'texto | grep -q "lunes $(date -d $LUN +%d/%m/%Y)" && has "UTI" && has ">Mañana<" && texto | grep -q "06:00 →a 14:00"'
+check "Semana: estado del turno (Programado)" 'has "estado-turno--programado" && has ">Programado<"'
+check "Semana: los dias sin turno dicen Sin turno asignado" 'has "Sin turno asignado" && ! has "Franco"'
+check "Semana: total del periodo" 'has "1 turno en este período" && has "8 h en total"'
+check "Privacidad: no ve los turnos de otra enfermera" '! has "Gomez" && ! has ">Noche<"'
+check "Resumen Hoy/Mañana arriba (con el proximo turno si no es mañana)" 'has "titulo-resumen" && { has "Próximo turno:" || [[ $LUN == $(date -d tomorrow +%F) ]]; }'
+check "Lector de pantalla: una frase completa por turno en la agenda" 'has "Mañana en UTI" && has "de 06:00 a 14:00, programado."'
+get z "mi-cronograma?vista=mes&fecha=$LUN" >/dev/null
+check "Mes: titulo del mes y su turno" 'has "$(date -d $LUN +%Y)" && has "1 turno en este período" && has ">Mañana<"'
+check "Mes: navegacion Anterior, Este mes y Siguiente" 'has "Anterior" && has "Este mes" && has "Siguiente"'
+get z "mi-cronograma?vista=semana&fecha=$LUN&usuario_id=$MARIA" >/dev/null
+check "Privacidad: un usuario_id en la URL no cambia de quien son los turnos" '! has "Gomez" && has "1 turno en este período"'
+r=$(get z "mi-cronograma?vista=%3Cscript%3E&fecha=no-fecha"); check "Parametros invalidos no rompen (vista semana por defecto)" '[[ $r == 200* ]] && has "Semana del"'
+get z "mi-cronograma?vista=mes&fecha=2020-01-15" >/dev/null
+check "Mes sin turnos: estado vacio con link al mes actual" 'has "No tiene turnos asignados en enero 2020" && has "Ir al mes actual"'
+
+echo "== HU-17 Bordes (revision QA)"
+r=$(get z "mi-cronograma?vista[]=mes&fecha[]=x"); check "Parametros en forma de arreglo no dan error 500" '[[ $r == 200* ]] && has "Semana del"'
+r=$(get a "admin/usuarios?estado[]=BAJA&q[]=x"); check "Arreglos en filtros del admin tampoco rompen" '[[ $r == 200* ]]'
+r=$(get a "admin/planificador?sector[]=1&semana[]=x"); check "Arreglos en el planificador tampoco rompen" '[[ $r == 200* ]]'
+get z "mi-cronograma?vista=semana&fecha=2026-12-31" >/dev/null; check "Semana con cambio de año" 'has "Semana del 28/12/2026 al 03/01/2027"'
+get z "mi-cronograma?vista=semana&fecha=2026-02-30" >/dev/null; check "Fecha inexistente cae a la semana actual" 'has "Semana del $(date -d "$(date +%F) -$(( $(date +%u) - 1 )) day" +%d/%m/%Y)"'
+get z "mi-cronograma?vista=semana&fecha=9999-12-31" >/dev/null; check "Año fuera de rango cae a la semana actual" 'has "Semana del $(date -d "$(date +%F) -$(( $(date +%u) - 1 )) day" +%d/%m/%Y)" && ! texto | grep -q "/9999"'
+get z "mi-cronograma?vista=mes" >/dev/null; check "Desde Este mes, el boton Semana va a la semana de hoy" 'has "vista=semana&amp;fecha=$(date +%F)"'
+get a "admin/asignaciones/crear" >/dev/null; cp "$D/out.html" "$D/as.html"; post a admin/asignaciones/crear "$D/as.html" -d "usuario_id=$JUAN&sector_id=1&tipo_turno_id=3&fecha=$MAR" >/dev/null
+get z "mi-cronograma?vista=semana&fecha=$LUN" >/dev/null; check "Turno Noche: muestra el dia de salida" 'texto | grep -q "22:00 →a 06:00 del mié $(date -d $MIE +%d/%m)"'
+check "Al otro dia: nota de salida de la Noche" 'has "Sale de Noche a las 06:00"'
 
 echo "== Limite de intentos de login"
 rm -f "$D/t"; get t login >/dev/null; cp "$D/out.html" "$D/f.html"

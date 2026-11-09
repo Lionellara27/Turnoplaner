@@ -37,17 +37,17 @@ class Usuarios extends BaseController
      */
     public function index(): string
     {
-        $estado = strtoupper((string) $this->request->getGet('estado'));
+        $estado = strtoupper($this->textoGet('estado'));
         if (! in_array($estado, self::FILTROS_ESTADO, true)) {
             $estado = 'ACTIVO';
         }
 
-        $especialidad = (string) $this->request->getGet('especialidad');
+        $especialidad = $this->textoGet('especialidad');
         if (! in_array($especialidad, UsuarioModel::ESPECIALIDADES, true)) {
             $especialidad = '';
         }
 
-        $busqueda = mb_substr(trim((string) $this->request->getGet('q')), 0, 100);
+        $busqueda = mb_substr(trim($this->textoGet('q')), 0, 100);
 
         return view('admin/users/index', [
             'titulo'         => 'Personal de enfermería - TurnoPlaner',

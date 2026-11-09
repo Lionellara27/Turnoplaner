@@ -18,7 +18,7 @@ Este documento define las reglas de diseño para generar interfaces web.
 - **PROHIBIDO:** No incluir las etiquetas `<!DOCTYPE html>`, `<html>`, `<head>` o `<body>`.
 - **Framework CSS:** Usar **Bootstrap 5** en toda la interfaz (grillas, componentes, utilidades y espaciado), no solo en formularios. No mezclar otros frameworks CSS.
 - **Sin estilos inline:** los colores se aplican con las clases del proyecto (`.tp-card-header`, `.btn-tp`, `.alerta--*`) definidas en `public/css/app.css`, nunca con `style="..."`.
-  - **Excepciones (solo datos, nunca estética):** el ancho de las barras `.progress-bar` (`style="width: N%"`, como lo exige Bootstrap) y el color que elige el administrador para un tipo de turno. Se pasa como `style="--color-turno: …; --color-turno-texto: …"` (solo esas dos variables CSS, nunca propiedades directas), con el valor saneado por `TipoTurno::getColor()` y escapado con `esc(…, 'attr')`. Ver 4.7.
+  - **Excepciones (solo datos, nunca estética):** el ancho de las barras `.progress-bar` (`style="width: N%"`, como lo exige Bootstrap) y el color que elige el administrador para un tipo de turno. Se pasa como `style="--color-turno: …; --color-turno-texto: …"` (solo esas dos variables CSS, nunca propiedades directas), con el valor saneado por `TipoTurno::getColor()` y escapado con `esc(…, 'attr')`. Lo usan `tipos_turno/_etiqueta.php`, `planificador/_celda.php` y `cronograma/_turno.php`. Ver 4.7.
 
 ## 2. Identidad Visual y Colores (TurnoPlaner)
 
@@ -214,6 +214,25 @@ Clases `.cobertura--ok`, `.cobertura--parcial`, `.cobertura--vacio`. Siempre íc
 ### 4.10. Selects de Personas
 
 Ordenados por apellido. Cuando ya se sabe el turno y la fecha, cada opción muestra las horas de la semana ("32 h de 36 h esta semana") y las que no pueden tomar el turno van `disabled` con el motivo. Con más de 8 opciones, un buscador arriba (`data-filtrar-select`).
+
+### 4.11. Mi Cronograma (portal del enfermero/a, HU-17)
+
+- **Arriba, siempre:** tarjeta `.proximo-turno` con dos columnas, **Hoy** y **Mañana** (fecha larga). Cada una muestra sus turnos (etiqueta, horario y sector, apilados sin "·" sueltos) o "Sin turno asignado". Si no hay nada ni hoy ni mañana, agrega "Próximo turno:" con el siguiente programado; si una Noche empezó ayer y sigue, "Turno en curso (empezó ayer)". No depende de la semana o el mes que se esté mirando.
+- **Navegación:** dos `btn-group` (Semana / Mes y Anterior / Esta semana o Este mes / Siguiente), sin `btn-sm` (44 px de alto). El botón activo lleva `aria-current`.
+- **Totales:** "N turnos en este período · X h en total", solo si hay turnos.
+- **Estado vacío** (semana o mes): ícono `bi-calendar-x`, "No tiene turnos asignados en …" y, si no es el período actual, el botón "Ir a la semana actual" / "Ir al mes actual".
+- **Lista de días** (parcial `cronograma/_dias.php`): tabla desde 1200 px (`d-xl-block`, borde en el contenedor) y agenda por día debajo (`d-xl-none`). La semana muestra los 7 días; los días sin turno dicen "Sin turno asignado" (no "Franco": que no haya turno no significa que sea franco). El mes muestra solo los días con turno y, en el mes actual, los días ya pasados van plegados en un `<details>` ("Ver N días anteriores de este mes").
+- **Hoy:** fila/bloque con fondo `--color-primario-suave`, `aria-current="date"` y la marca `.badge-hoy` (blanco sobre `#307f6d`, 4.8:1).
+- **Noche:** el horario muestra el día de salida, "22:00 → 06:00 del mié 11/11"; el día siguiente lleva la nota "Sale de Noche a las 06:00" (ícono `bi-moon-stars`).
+- **Lectores de pantalla:** en la agenda, cada turno tiene una frase completa oculta ("Mañana en UTI (área crítica), de 06:00 a 14:00, programado.") y las piezas visuales van `aria-hidden`.
+
+| Estado | Clase | Ícono | Colores | Contraste |
+| :--- | :--- | :--- | :--- | :--- |
+| Programado | `.estado-turno--programado` | `bi-calendar-check` | `#1f5f8b` / `#e7f1f8` | 5.98:1 |
+| En curso | `.estado-turno--en-curso` | `bi-play-circle-fill` | `#2e7d32` / `#e8f5e9` | 4.56:1 |
+| Finalizado | `.estado-turno--finalizado` | `bi-check2-circle` | `#5c6b75` / `#eceff1` | 4.77:1 |
+
+"Próximo" se reserva para la tarjeta de arriba; en la lista, un turno que todavía no empezó es "Programado".
 
 ## 5. Foco y Accesibilidad
 

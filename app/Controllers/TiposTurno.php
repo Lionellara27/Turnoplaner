@@ -30,11 +30,11 @@ class TiposTurno extends BaseController
     /** HU-12: listado. */
     public function index(): string
     {
-        $estado = strtoupper((string) $this->request->getGet('estado'));
+        $estado = strtoupper($this->textoGet('estado'));
         if (! in_array($estado, self::FILTROS_ESTADO, true)) {
             $estado = 'ACTIVO';
         }
-        $busqueda = mb_substr(trim((string) $this->request->getGet('q')), 0, 60);
+        $busqueda = mb_substr(trim($this->textoGet('q')), 0, 60);
 
         return view('admin/tipos_turno/index', [
             'titulo'  => 'Tipos de turno - TurnoPlaner',

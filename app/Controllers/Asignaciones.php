@@ -41,9 +41,9 @@ class Asignaciones extends BaseController
     public function crear(): string
     {
         $previo = [
-            'sector_id'     => (int) $this->request->getGet('sector'),
-            'tipo_turno_id' => (int) $this->request->getGet('tipo'),
-            'fecha'         => $this->fechaValida((string) $this->request->getGet('fecha')) ?? date('Y-m-d'),
+            'sector_id'     => (int) $this->textoGet('sector'),
+            'tipo_turno_id' => (int) $this->textoGet('tipo'),
+            'fecha'         => $this->fechaValida($this->textoGet('fecha')) ?? date('Y-m-d'),
             'usuario_id'    => 0,
         ];
 
@@ -331,10 +331,4 @@ class Asignaciones extends BaseController
         ]));
     }
 
-    private function fechaValida(string $fecha): ?string
-    {
-        $d = DateTimeImmutable::createFromFormat('!Y-m-d', $fecha);
-
-        return $d !== false && $d->format('Y-m-d') === $fecha ? $fecha : null;
-    }
 }

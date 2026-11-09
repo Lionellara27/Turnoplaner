@@ -97,6 +97,9 @@ La consigna pide "un nivel estándar de usabilidad, proporcionando las indicacio
 | Ok `#2e7d32` sobre `#e8f5e9` | 4.6:1 | Cumple |
 | Primario oscuro `#307f6d` sobre blanco (links) | 4.8:1 | Cumple |
 | Info `#1f5f8b` sobre `#e7f1f8` | 6.0:1 | Cumple |
+| Gris `#5c6b75` sobre `#eceff1` (estado "Finalizado") | 4.8:1 | Cumple |
+| Gris `#5c6b75` sobre fila de hoy `#e6f4f0` | 4.9:1 | Cumple |
+| Blanco sobre `#307f6d` (`.badge-hoy`) | 4.8:1 | Cumple |
 | `.text-body-secondary` sobre fila con hover `#f4faf8` | 6.5:1 | Cumple |
 | **Blanco sobre primario `#43ab92`** | **2.8:1** | **No cumple: por eso los fondos con texto usan `#307f6d`** |
 | **Primario `#43ab92` sobre blanco** | **2.8:1** | **No cumple: nunca como color de texto o link** |

@@ -31,15 +31,15 @@ class Sectores extends BaseController
     /** HU-10: listado. */
     public function index(): string
     {
-        $estado = strtoupper((string) $this->request->getGet('estado'));
+        $estado = strtoupper($this->textoGet('estado'));
         if (! in_array($estado, self::FILTROS_ESTADO, true)) {
             $estado = 'ACTIVO';
         }
-        $tipo = strtoupper((string) $this->request->getGet('tipo'));
+        $tipo = strtoupper($this->textoGet('tipo'));
         if (! in_array($tipo, self::FILTROS_TIPO, true)) {
             $tipo = '';
         }
-        $busqueda = mb_substr(trim((string) $this->request->getGet('q')), 0, 80);
+        $busqueda = mb_substr(trim($this->textoGet('q')), 0, 80);
 
         return view('admin/sectores/index', [
             'titulo'   => 'Sectores - TurnoPlaner',
