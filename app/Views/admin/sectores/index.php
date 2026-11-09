@@ -109,16 +109,16 @@ $detalleBaja = 'No podrá elegirse para nuevas asignaciones de turnos. Los datos
 
             <!-- 1200 px o más: tabla -->
             <div class="table-responsive d-none d-xl-block">
-                <table class="table table-hover align-middle border mb-0">
+                <table class="table table-hover align-middle border mb-0" style="table-layout: fixed; width: 100%;">
                     <caption class="visually-hidden">Listado de sectores del hospital</caption>
                     <thead class="table-light">
-                        <tr>
-                            <th scope="col">Sector</th>
-                            <th scope="col">Tipo</th>
-                            <th scope="col">Dotación mínima</th>
-                            <th scope="col">Estado</th>
-                            <th scope="col" class="text-end">Acciones</th>
-                        </tr>
+                    <tr>
+                        <th scope="col" style="width: 45%;">Sector</th>
+                        <th scope="col" style="width: 15%;">Tipo</th>
+                        <th scope="col" style="width: 18%;">Dotación mínima</th>
+                        <th scope="col" style="width: 10%;">Estado</th>
+                        <th scope="col" class="text-end" style="width: 12%;">Acciones</th>
+                    </tr>
                     </thead>
                     <tbody>
                     <?php foreach ($sectores as $s): ?>
@@ -131,7 +131,7 @@ $detalleBaja = 'No podrá elegirse para nuevas asignaciones de turnos. Los datos
                             </td>
                             <td class="text-nowrap"><?= view('admin/sectores/_tipo', ['s' => $s]) ?></td>
                             <td class="text-nowrap"><?= esc($s->dotacionTexto()) ?></td>
-                            <td><?= view('partials/estado_registro', ['activo' => $s->estaActivo()]) ?></td>
+                            <td class="text-nowrap"><?= view('partials/estado_registro', ['activo' => $s->estaActivo()]) ?></td>
                             <td class="text-end text-nowrap">
                                 <?= view('partials/acciones_catalogo', ['id' => (int) $s->id, 'nombre' => $s->nombre, 'activo' => $s->estaActivo(), 'ruta' => 'admin/sectores', 'prefijo' => 'Sector', 'conTexto' => false]) ?>
                             </td>
