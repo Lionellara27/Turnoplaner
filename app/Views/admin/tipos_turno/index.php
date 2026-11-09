@@ -100,7 +100,7 @@ $detalleBaja = 'Ya no aparecerá para asignar turnos. No se permite si tiene tur
                     <caption class="visually-hidden">Listado de tipos de turno</caption>
                     <thead class="table-light">
                         <tr>
-                            <th scope="col">Nombre y color</th>
+                            <th scope="col">Turno</th>
                             <th scope="col">Horario</th>
                             <th scope="col" class="text-center">Horas</th>
                             <th scope="col">Estado</th>
