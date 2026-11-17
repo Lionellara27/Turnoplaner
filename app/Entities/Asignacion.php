@@ -93,4 +93,18 @@ class Asignacion extends Entity
     {
         return ($this->attributes['usuario_estado'] ?? 'ACTIVO') !== 'ACTIVO';
     }
+
+    /** Matrícula profesional del enfermero/a si la consulta la trajo. */
+    public function matriculaEnfermero(): string
+    {
+        $mat = trim((string) ($this->attributes['matricula'] ?? ''));
+
+        return $mat !== '' ? $mat : 'Sin matrícula';
+    }
+
+    /** Especialidad del enfermero/a si la consulta la trajo. */
+    public function especialidadEnfermero(): string
+    {
+        return trim((string) ($this->attributes['especialidad'] ?? ''));
+    }
 }

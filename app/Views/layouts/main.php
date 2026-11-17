@@ -58,6 +58,10 @@ $itemMenu = static function (array $item) use ($esActual): string {
           integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
 
     <!-- Estilos propios (paleta de DESIGN.md) -->
+    <!-- Tipografías TurnoPlaner Sage & Pine -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&family=Source+Code+Pro:wght@500;600&family=Wix+Madefor+Display:wght@500..700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= base_url('css/app.css') ?>">
 
     <?php if ($conMenu): ?>

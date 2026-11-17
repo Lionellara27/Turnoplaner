@@ -401,7 +401,7 @@ class AsignacionModel extends Model
         $desde = $anioMes . '-01';
         $hasta = (new DateTimeImmutable($desde))->modify('last day of this month')->format('Y-m-d');
 
-        $filas = $this->select('asignaciones.*, usuarios.nombre, usuarios.apellido, usuarios.estado AS usuario_estado')
+        $filas = $this->select('asignaciones.*, usuarios.nombre, usuarios.apellido, usuarios.matricula, usuarios.especialidad, usuarios.estado AS usuario_estado')
             ->join('usuarios', 'usuarios.id = asignaciones.usuario_id')
             ->where('asignaciones.sector_id', $sectorId)
             ->where('asignaciones.fecha >=', $desde)
