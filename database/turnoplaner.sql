@@ -157,6 +157,8 @@ CREATE TABLE asignaciones (
     inicio              DATETIME          NOT NULL,
     fin                 DATETIME          NOT NULL,
     duracion_minutos    SMALLINT UNSIGNED NOT NULL,
+    es_extra            TINYINT(1)        NOT NULL DEFAULT 0,
+    minutos_extra       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     creado_por          INT UNSIGNED      NULL,              -- administrador que lo asigno
     created_at          DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME          NULL DEFAULT NULL,

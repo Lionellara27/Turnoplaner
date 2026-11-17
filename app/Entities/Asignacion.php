@@ -20,8 +20,15 @@ class Asignacion extends Entity
         'sector_id'        => 'integer',
         'tipo_turno_id'    => 'integer',
         'duracion_minutos' => 'integer',
+        'es_extra'         => 'integer',
+        'minutos_extra'    => 'integer',
     ];
 
+    public function esExtra(): bool
+    {
+        return (int) ($this->attributes['es_extra'] ?? 0) === 1;
+    }
+    
     /**
      * Se puede reasignar o eliminar mientras el turno no haya terminado
      * (la mañana de hoy deja de ser editable a las 14:00).

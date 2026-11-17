@@ -11,7 +11,7 @@ use CodeIgniter\Model;
 use DateTimeImmutable;
 
 /**
- * Asignaciones de turnos (HU-13) y su lectura semanal para la cuadrícula (HU-14).
+ * Asignaciones de turnos (HU-13) y lectura mensual/semanal (HU-14).
  */
 class AsignacionModel extends Model
 {
@@ -21,7 +21,8 @@ class AsignacionModel extends Model
     protected $useSoftDeletes = true;
     protected $protectFields  = true;
     protected $allowedFields  = [
-        'usuario_id', 'sector_id', 'tipo_turno_id', 'fecha', 'inicio', 'fin', 'duracion_minutos', 'creado_por',
+        'usuario_id', 'sector_id', 'tipo_turno_id', 'fecha', 'inicio', 'fin',
+        'duracion_minutos', 'es_extra', 'minutos_extra', 'creado_por',
     ];
 
     protected $useTimestamps = true;
@@ -51,8 +52,18 @@ class AsignacionModel extends Model
     }
 
     /**
+     * Fecha máxima habilitada para asignar turnos:
+     * la planificación mensual está disponible 1 mes antes (hasta el último día del mes siguiente al actual).
+     */
+    public static function fechaMaximaHabilitada(): string
+    {
+        return (new DateTimeImmutable('first day of next month'))
+            ->modify('last day of this month')
+            ->format('Y-m-d');
+    }
+
+    /**
      * Inicio y fin reales de un turno que empieza en $fecha con el horario del tipo de turno.
-     * Un turno de 22:00 a 06:00 termina al día siguiente.
      *
      * @return array{inicio: string, fin: string, duracion_minutos: int}
      */
@@ -70,8 +81,6 @@ class AsignacionModel extends Model
 
     /**
      * Turno del mismo enfermero/a que se pisa en el tiempo con [$inicio, $fin).
-     * Compara fechas y horas completas: la noche del lunes (22 a 06) choca con la mañana del martes (06 a 14)
-     * solo si se superponen; terminar a las 06:00 y empezar a las 06:00 no es superposición.
      */
     public function superpuesta(int $usuarioId, string $inicio, string $fin, ?int $excluirId = null): ?Asignacion
     {
@@ -88,7 +97,6 @@ class AsignacionModel extends Model
 
     /**
      * Minutos ya asignados al enfermero/a en la semana (lunes a domingo) que contiene la fecha.
-     * Los turnos cuentan en la semana del día en que empiezan.
      */
     public function minutosEnSemana(int $usuarioId, string $fecha, ?int $excluirId = null): int
     {
@@ -110,12 +118,81 @@ class AsignacionModel extends Model
     }
 
     /**
-     * Reglas de negocio de HU-13. Devuelve los errores [campo => mensaje]; vacío si se puede asignar.
+     * Minutos asignados (totales y extras) al enfermero/a en el mes 'YYYY-MM'.
+     *
+     * @return array{total: int, extra: int}
+     */
+    public function resumenMesEnfermero(int $usuarioId, string $anioMes, ?int $excluirId = null): array
+    {
+        $desde = $anioMes . '-01';
+        $hasta = (new DateTimeImmutable($desde))->modify('last day of this month')->format('Y-m-d');
+
+        $builder = $this->builder()
+            ->selectSum('duracion_minutos', 'total')
+            ->selectSum('minutos_extra', 'extra')
+            ->where('usuario_id', $usuarioId)
+            ->where('fecha >=', $desde)
+            ->where('fecha <=', $hasta)
+            ->where('deleted_at', null);
+
+        if ($excluirId !== null) {
+            $builder->where('id !=', $excluirId);
+        }
+
+        $fila = $builder->get()->getRow();
+
+        return [
+            'total' => (int) ($fila->total ?? 0),
+            'extra' => (int) ($fila->extra ?? 0),
+        ];
+    }
+
+    /**
+     * Calcula si el turno computa como hora extra y cuántos minutos extras representa,
+     * comparando los minutos semanales ya asignados contra carga_horaria_max.
+     *
+     * @return array{es_extra: int, minutos_extra: int}
+     */
+    public function calcularHorasExtras(Usuario $enfermero, string $fecha, int $duracionMinutos, ?int $excluirId = null): array
+    {
+        $maximoMinutos = (int) ($enfermero->carga_horaria_max ?? 0) * 60;
+        if ($maximoMinutos <= 0) {
+            return ['es_extra' => 0, 'minutos_extra' => 0];
+        }
+
+        $yaAsignados = $this->minutosEnSemana((int) $enfermero->id, $fecha, $excluirId);
+        $nuevoTotal  = $yaAsignados + $duracionMinutos;
+
+        if ($nuevoTotal <= $maximoMinutos) {
+            return ['es_extra' => 0, 'minutos_extra' => 0];
+        }
+
+        // Si ya había cumplido el tope antes de este turno, todo el turno es extra;
+        // si lo cruza con este turno, solo el excedente es extra.
+        $excedente = $yaAsignados >= $maximoMinutos
+            ? $duracionMinutos
+            : ($nuevoTotal - $maximoMinutos);
+
+        return [
+            'es_extra'      => 1,
+            'minutos_extra' => $excedente,
+        ];
+    }
+
+    /**
+     * Reglas de negocio:
+     * - Verifica que el tipo de turno pertenezca al sector elegido.
+     * - Rechaza superposición horaria del mismo enfermero/a.
+     * - Si supera su carga horaria contratada, NO bloquea: permite tomarlo como hora extra.
      *
      * @return array<string, string>
      */
-    public function validarReglas(Usuario $enfermero, TipoTurno $tipo, string $fecha, ?int $excluirId = null): array
+    public function validarReglas(Usuario $enfermero, int $sectorId, TipoTurno $tipo, string $fecha, ?int $excluirId = null): array
     {
+        if ((int) $tipo->sector_id !== $sectorId) {
+            return ['tipo_turno_id' => "El turno «{$tipo->nombre}» no corresponde a la zona seleccionada."];
+        }
+
         $horario = self::calcularHorario($fecha, $tipo);
 
         $choque = $this->superpuesta((int) $enfermero->id, $horario['inicio'], $horario['fin'], $excluirId);
@@ -129,36 +206,47 @@ class AsignacionModel extends Model
             return ['tipo_turno_id' => "{$enfermero->getNombreCompleto()} ya tiene un turno{$detalle} que se superpone: del {$desde} al {$hasta}. Elija otra fecha, otra franja u otro enfermero/a."];
         }
 
-        $maximo = (int) ($enfermero->carga_horaria_max ?? 0) * 60;
-        if ($maximo <= 0) {
+        if ((int) ($enfermero->carga_horaria_max ?? 0) <= 0) {
             return ['usuario_id' => "{$enfermero->getNombreCompleto()} no tiene cargada su carga horaria máxima. Complétela en su legajo antes de asignarle turnos."];
-        }
-        if ($maximo > 0) {
-            $yaAsignados = $this->minutosEnSemana((int) $enfermero->id, $fecha, $excluirId);
-            $total       = $yaAsignados + $horario['duracion_minutos'];
-
-            if ($total > $maximo) {
-                $lunes = new DateTimeImmutable(self::lunesDe($fecha));
-
-                return ['usuario_id' => sprintf(
-                    'Supera la carga horaria de %s: en la semana del %s al %s ya tiene %s asignadas; con este turno (%s) llegaría a %s y su máximo contratado es %d h.',
-                    $enfermero->getNombreCompleto(),
-                    $lunes->format('d/m'),
-                    $lunes->modify('+6 days')->format('d/m'),
-                    self::horasTexto($yaAsignados),
-                    self::horasTexto($horario['duracion_minutos']),
-                    self::horasTexto($total),
-                    (int) $enfermero->carga_horaria_max
-                )];
-            }
         }
 
         return [];
     }
 
     /**
-     * Minutos asignados a cada enfermero/a en la semana que empieza el lunes indicado, sumando todos los sectores
-     * (resumen de balanceo de cargas de HU-14).
+     * Minutos asignados a cada enfermero/a en el mes 'YYYY-MM' (para resumen de balanceo mensual).
+     *
+     * @return array<int, array{total: int, extra: int}> [usuario_id => ['total' => ..., 'extra' => ...]]
+     */
+    public function minutosMesPorEnfermero(string $anioMes): array
+    {
+        $desde = $anioMes . '-01';
+        $hasta = (new DateTimeImmutable($desde))->modify('last day of this month')->format('Y-m-d');
+
+        $filas = $this->builder()
+            ->select('usuario_id')
+            ->selectSum('duracion_minutos', 'total')
+            ->selectSum('minutos_extra', 'extra')
+            ->where('fecha >=', $desde)
+            ->where('fecha <=', $hasta)
+            ->where('deleted_at', null)
+            ->groupBy('usuario_id')
+            ->get()
+            ->getResultArray();
+
+        $resultado = [];
+        foreach ($filas as $fila) {
+            $resultado[(int) $fila['usuario_id']] = [
+                'total' => (int) $fila['total'],
+                'extra' => (int) $fila['extra'],
+            ];
+        }
+
+        return $resultado;
+    }
+
+    /**
+     * Minutos asignados a cada enfermero/a en la semana que empieza el lunes indicado.
      *
      * @return array<int, int> [usuario_id => minutos]
      */
@@ -185,41 +273,68 @@ class AsignacionModel extends Model
     }
 
     /**
-     * Disponibilidad de cada enfermero/a para un turno y fecha (para el formulario de asignación):
-     * horas que ya tiene esa semana y, si no puede tomar el turno, el motivo.
+     * Disponibilidad y prioridad de cada enfermero/a para un turno y fecha:
+     * - Prioridad 1: enfermeros que todavía NO cumplieron su carga horaria (ordenados de menor a mayor carga).
+     * - Prioridad 2: enfermeros que YA cumplieron su carga y pueden cubrir como HORA EXTRA.
+     * - Prioridad 3: enfermeros no disponibles por superposición horaria.
      *
      * @param list<Usuario> $enfermeros
      *
-     * @return array<int, array{minutos: int, motivo: string}>
+     * @return array{
+     *     ordenados: list<Usuario>,
+     *     info: array<int, array{minutos: int, cumple_carga: bool, es_extra: bool, motivo: string}>
+     * }
      */
-    public function disponibilidad(array $enfermeros, TipoTurno $tipo, string $fecha, ?int $excluirId = null): array
+    public function disponibilidadConPrioridad(array $enfermeros, TipoTurno $tipo, string $fecha, ?int $excluirId = null): array
     {
-        $horario   = self::calcularHorario($fecha, $tipo);
-        $resultado = [];
+        $horario = self::calcularHorario($fecha, $tipo);
+        $info    = [];
 
         foreach ($enfermeros as $e) {
-            $id      = (int) $e->id;
-            $minutos = $this->minutosEnSemana($id, $fecha, $excluirId);
-            $motivo  = '';
+            $id          = (int) $e->id;
+            $minutos     = $this->minutosEnSemana($id, $fecha, $excluirId);
+            $maxMinutos  = (int) ($e->carga_horaria_max ?? 0) * 60;
+            $superpuesto = $this->superpuesta($id, $horario['inicio'], $horario['fin'], $excluirId) !== null;
+            $cumpleCarga = $maxMinutos > 0 && $minutos >= $maxMinutos;
+            $seraExtra   = $maxMinutos > 0 && ($minutos + $horario['duracion_minutos']) > $maxMinutos;
 
-            if ($this->superpuesta($id, $horario['inicio'], $horario['fin'], $excluirId) !== null) {
-                $motivo = 'ya tiene un turno que se superpone';
-            } elseif ($minutos + $horario['duracion_minutos'] > (int) ($e->carga_horaria_max ?? 0) * 60) {
-                $motivo = 'superaría su máximo semanal';
-            }
-
-            $resultado[$id] = ['minutos' => $minutos, 'motivo' => $motivo];
+            $info[$id] = [
+                'minutos'      => $minutos,
+                'cumple_carga' => $cumpleCarga,
+                'es_extra'     => $seraExtra,
+                'motivo'       => $superpuesto ? 'ya tiene un turno que se superpone' : '',
+            ];
         }
 
-        return $resultado;
+        $ordenados = $enfermeros;
+        usort($ordenados, static function (Usuario $a, Usuario $b) use ($info): int {
+            $ia = $info[(int) $a->id];
+            $ib = $info[(int) $b->id];
+
+            // Grupo: 0 = disponible sin cumplir tope (máxima prioridad), 1 = disponible para hora extra, 2 = superpuesto
+            $grupoA = $ia['motivo'] !== '' ? 2 : ($ia['cumple_carga'] ? 1 : 0);
+            $grupoB = $ib['motivo'] !== '' ? 2 : ($ib['cumple_carga'] ? 1 : 0);
+
+            if ($grupoA !== $grupoB) {
+                return $grupoA <=> $grupoB;
+            }
+
+            if ($ia['minutos'] !== $ib['minutos']) {
+                return $ia['minutos'] <=> $ib['minutos'];
+            }
+
+            return strcmp((string) $a->apellido, (string) $b->apellido);
+        });
+
+        return [
+            'ordenados' => $ordenados,
+            'info'      => $info,
+        ];
     }
 
     /**
-     * Valida las reglas de HU-13 y guarda, todo en una transacción con bloqueos:
-     * - bloquea la fila del enfermero/a (FOR UPDATE): si dos administradores le asignan turnos a la vez,
-     *   el segundo espera y vuelve a validar con lo que guardó el primero (sin superposiciones ni excesos);
-     * - bloquea en modo compartido el sector y el tipo de turno y verifica que sigan activos:
-     *   así no se pueden dar de baja mientras se les está asignando un turno.
+     * Valida las reglas y guarda en una transacción con bloqueos, recalculando horas extras dentro del bloqueo
+     * para evitar condiciones de carrera si dos administradores asignan a la vez.
      *
      * @return array<string, string> errores [campo => mensaje]; vacío si se guardó.
      */
@@ -231,7 +346,7 @@ class AsignacionModel extends Model
             $this->db->query('SELECT id FROM usuarios WHERE id = ? FOR UPDATE', [(int) $enfermero->id]);
 
             $sectorActivo = $this->db->query('SELECT id FROM sectores WHERE id = ? AND deleted_at IS NULL LOCK IN SHARE MODE', [$sectorId])->getRow();
-            $tipoActivo   = $this->db->query('SELECT id FROM tipos_turno WHERE id = ? AND deleted_at IS NULL LOCK IN SHARE MODE', [(int) $tipo->id])->getRow();
+            $tipoActivo   = $this->db->query('SELECT id, sector_id FROM tipos_turno WHERE id = ? AND deleted_at IS NULL LOCK IN SHARE MODE', [(int) $tipo->id])->getRow();
 
             $errores = [];
             if ($sectorActivo === null) {
@@ -239,13 +354,23 @@ class AsignacionModel extends Model
             }
             if ($tipoActivo === null) {
                 $errores['tipo_turno_id'] = 'El turno elegido no está activo.';
-            }
-            if ($errores === []) {
-                $errores = $this->validarReglas($enfermero, $tipo, $fecha, $excluirId);
+            } elseif ((int) $tipoActivo->sector_id !== $sectorId) {
+                $errores['tipo_turno_id'] = 'El turno elegido no pertenece al sector seleccionado.';
             }
 
-            if ($errores === [] && ! $this->save($asignacion)) {
-                $errores = $this->errors();
+            if ($errores === []) {
+                $errores = $this->validarReglas($enfermero, $sectorId, $tipo, $fecha, $excluirId);
+            }
+
+            if ($errores === []) {
+                // Recalcular dentro del bloqueo transaccional si computa como hora extra
+                $extras = $this->calcularHorasExtras($enfermero, $fecha, (int) $asignacion->duracion_minutos, $excluirId);
+                $asignacion->es_extra      = $extras['es_extra'];
+                $asignacion->minutos_extra = $extras['minutos_extra'];
+
+                if (! $this->save($asignacion)) {
+                    $errores = $this->errors();
+                }
             }
 
             if ($errores !== []) {
@@ -266,10 +391,36 @@ class AsignacionModel extends Model
     }
 
     /**
-     * Turnos de un sector en la semana que empieza el lunes indicado, agrupados por fecha y tipo de turno,
-     * con el nombre del enfermero/a (HU-14).
+     * Turnos de un sector en un mes 'YYYY-MM', agrupados por fecha y tipo de turno,
+     * con los datos del enfermero/a (para el calendario mensual del administrador).
      *
      * @return array<string, array<int, list<Asignacion>>> [fecha][tipo_turno_id] => asignaciones
+     */
+    public function mesDeSector(int $sectorId, string $anioMes): array
+    {
+        $desde = $anioMes . '-01';
+        $hasta = (new DateTimeImmutable($desde))->modify('last day of this month')->format('Y-m-d');
+
+        $filas = $this->select('asignaciones.*, usuarios.nombre, usuarios.apellido, usuarios.estado AS usuario_estado')
+            ->join('usuarios', 'usuarios.id = asignaciones.usuario_id')
+            ->where('asignaciones.sector_id', $sectorId)
+            ->where('asignaciones.fecha >=', $desde)
+            ->where('asignaciones.fecha <=', $hasta)
+            ->orderBy('usuarios.apellido', 'ASC')
+            ->findAll();
+
+        $grilla = [];
+        foreach ($filas as $fila) {
+            $grilla[(string) $fila->fecha][(int) $fila->tipo_turno_id][] = $fila;
+        }
+
+        return $grilla;
+    }
+
+    /**
+     * Turnos de un sector en la semana que empieza el lunes indicado (se mantiene por compatibilidad).
+     *
+     * @return array<string, array<int, list<Asignacion>>>
      */
     public function semanaDeSector(int $sectorId, string $lunes): array
     {
@@ -292,9 +443,7 @@ class AsignacionModel extends Model
     }
 
     /**
-     * Turnos de un enfermero/a entre dos fechas (inclusive), con el sector y el tipo de turno (HU-17).
-     * Incluye sectores y tipos dados de baja después de asignar, para no perder la historia.
-     * Siempre filtra por el usuario recibido: el controlador le pasa el de la sesión, nunca uno de la URL.
+     * Turnos de un enfermero/a entre dos fechas (inclusive).
      *
      * @return list<Asignacion>
      */
@@ -311,9 +460,6 @@ class AsignacionModel extends Model
             ->findAll();
     }
 
-    /**
-     * Próximo turno del enfermero/a que todavía no terminó (el que está en curso o el siguiente).
-     */
     public function proximoDelEnfermero(int $usuarioId, string $ahora): ?Asignacion
     {
         return $this->select('asignaciones.*, sectores.nombre AS sector_nombre, sectores.es_critico AS sector_critico, '
@@ -326,9 +472,6 @@ class AsignacionModel extends Model
             ->first();
     }
 
-    /**
-     * Siguiente turno del enfermero/a que todavía no empezó (para el resumen "Siguiente" del cronograma).
-     */
     public function siguienteProgramado(int $usuarioId, string $ahora): ?Asignacion
     {
         return $this->select('asignaciones.*, sectores.nombre AS sector_nombre, sectores.es_critico AS sector_critico, '
@@ -341,7 +484,6 @@ class AsignacionModel extends Model
             ->first();
     }
 
-    /** 450 -> "7 h 30 min"; 480 -> "8 h". */
     public static function horasTexto(int $minutos): string
     {
         $horas = intdiv($minutos, 60);

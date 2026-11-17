@@ -12,8 +12,8 @@ use App\Models\UsuarioModel;
 use DateTimeImmutable;
 
 /**
- * HU-14: cuadrícula semanal de turnos por sector.
- * Filas: tipos de turno activos. Columnas: lunes a domingo.
+ * HU-14: cuadrícula de turnos por sector.
+ * Filas: tipos de turno activos del sector seleccionado. Columnas: días del período.
  * Cada celda muestra los enfermeros/as asignados y "asignados / dotación mínima".
  */
 class Planificador extends BaseController
@@ -21,7 +21,6 @@ class Planificador extends BaseController
     public function index(): string
     {
         $sectores = (new SectorModel())->activos();
-        $tipos    = (new TipoTurnoModel())->activos();
 
         $sector = null;
         $pedido = (int) $this->textoGet('sector');
@@ -32,8 +31,13 @@ class Planificador extends BaseController
         }
         $sector ??= $sectores[0] ?? null;
 
-        $base   = $this->fechaValida($this->textoGet('semana')) ?? date('Y-m-d');
-        $lunes  = AsignacionModel::lunesDe($base);
+        // Trae únicamente los tipos de turno activos de la zona/sector seleccionado
+        $tipos = $sector instanceof Sector
+            ? (new TipoTurnoModel())->activosPorSector((int) $sector->id)
+            : [];
+
+        $base  = $this->fechaValida($this->textoGet('semana')) ?? date('Y-m-d');
+        $lunes = AsignacionModel::lunesDe($base);
 
         $inicioSemana = new DateTimeImmutable($lunes);
         $dias         = [];
@@ -43,7 +47,7 @@ class Planificador extends BaseController
 
         $grilla = $sector instanceof Sector ? (new AsignacionModel())->semanaDeSector((int) $sector->id, $lunes) : [];
 
-        // Historia: si en la semana hay turnos de un tipo que después se dio de baja, su fila también se muestra.
+        // Historia: si en el período hay turnos de un tipo que después se dio de baja, su fila también se muestra.
         $idsVisibles = array_map(static fn ($t): int => (int) $t->id, $tipos);
         $idsConTurno = [];
         foreach ($grilla as $porTipo) {
@@ -56,20 +60,20 @@ class Planificador extends BaseController
         }
 
         return view('admin/planificador/index', [
-            'titulo'   => 'Planificador semanal - TurnoPlaner',
-            'sectores' => $sectores,
-            'tipos'    => $tipos,
-            'sector'   => $sector,
-            'dias'     => $dias,
-            'lunes'    => $lunes,
-            'anterior' => $inicioSemana->modify('-7 days')->format('Y-m-d'),
-            'siguiente' => $inicioSemana->modify('+7 days')->format('Y-m-d'),
-            'hoy'      => date('Y-m-d'),
-            'grilla'   => $grilla,
+            'titulo'        => 'Planificador - TurnoPlaner',
+            'sectores'      => $sectores,
+            'tipos'         => $tipos,
+            'sector'        => $sector,
+            'dias'          => $dias,
+            'lunes'         => $lunes,
+            'anterior'      => $inicioSemana->modify('-7 days')->format('Y-m-d'),
+            'siguiente'     => $inicioSemana->modify('+7 days')->format('Y-m-d'),
+            'hoy'           => date('Y-m-d'),
+            'grilla'        => $grilla,
             // Resumen de balanceo: horas de la semana de cada enfermero/a activo (todos los sectores) contra su máximo.
             'enfermeros'    => (new UsuarioModel())->enfermerosActivos(),
             'minutosSemana' => (new AsignacionModel())->minutosSemanaPorEnfermero($lunes),
-            'ahora'    => date('Y-m-d H:i:s'),
+            'ahora'         => date('Y-m-d H:i:s'),
         ]);
     }
 }

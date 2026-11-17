@@ -3,11 +3,11 @@
  * HU-13: asignar (alta) o reasignar (edición) un turno.
  *
  * @var \App\Entities\Asignacion|null   $asignacion  null al asignar
- * @var list<\App\Entities\Usuario>     $enfermeros  activos
+ * @var list<\App\Entities\Usuario>     $enfermeros  activos (ordenados por prioridad si se conoce turno y fecha)
  * @var list<\App\Entities\Sector>      $sectores    activos
  * @var list<\App\Entities\TipoTurno>   $tipos       activos
  * @var array<string, mixed>            $previo      valores iniciales
- * @var array<int, array{minutos:int, motivo:string}> $disponibilidad  por enfermero/a (si ya se sabe turno y fecha)
+ * @var array<int, array{minutos:int, cumple_carga:bool, es_extra:bool, motivo:string}> $disponibilidad
  * @var string                          $calculoPara texto "Noche del lunes 09/11/2026" o vacío
  * @var string                          $fechaMaxima Y-m-d
  */
@@ -17,7 +17,7 @@ $valor    = static fn (string $campo): string => (string) old($campo, (string) (
 $accion   = $editando ? base_url('admin/asignaciones/' . $asignacion->id . '/editar') : base_url('admin/asignaciones/crear');
 $volver   = base_url('admin/planificador') . '?' . http_build_query(array_filter([
     'sector' => (int) ($previo['sector_id'] ?? 0) ?: null,
-    'semana' => \App\Models\AsignacionModel::lunesDe($valor('fecha') ?: date('Y-m-d')),
+    'mes'    => substr($valor('fecha') ?: date('Y-m-d'), 0, 7),
 ]), '', '&amp;');
 $faltanDatos = $enfermeros === [] || $sectores === [] || $tipos === [];
 ?>
@@ -30,7 +30,7 @@ $faltanDatos = $enfermeros === [] || $sectores === [] || $tipos === [];
             <div class="me-3"><img src="<?= base_url('img/logo-64.png') ?>" alt="Logo TurnoPlaner" class="barra__logo"></div>
             <div>
                 <h1 class="h4 mb-0 fw-semibold text-white"><?= $editando ? 'Reasignar turno' : 'Asignar turno' ?></h1>
-                <p class="mb-0 small subtitulo">Enfermero/a, sector, fecha y franja horaria</p>
+                <p class="mb-0 small subtitulo">Planificación mensual · Enfermero/a, zona, fecha y franja horaria</p>
             </div>
         </div>
     </div>
@@ -38,7 +38,6 @@ $faltanDatos = $enfermeros === [] || $sectores === [] || $tipos === [];
     <div class="card-body p-4 p-md-5 bg-white">
 
         <?php if ($faltanDatos): ?>
-            <!-- Estado vacío: faltan catálogos para poder asignar -->
             <div class="text-center py-4">
                 <i class="bi bi-exclamation-circle fs-1 text-body-secondary d-block mb-2" aria-hidden="true"></i>
                 <p class="fw-semibold mb-2">Para asignar turnos hace falta tener cargado:</p>
@@ -53,8 +52,8 @@ $faltanDatos = $enfermeros === [] || $sectores === [] || $tipos === [];
         <div class="alerta alerta--info d-flex align-items-start gap-2 mb-4" role="note">
             <i class="bi bi-info-circle-fill fs-5" aria-hidden="true"></i>
             <div class="small">
-                El sistema rechaza el turno si el enfermero/a ya tiene otro que se superpone en el horario,
-                o si con este turno supera su <strong>carga horaria semanal contratada</strong> (semana de lunes a domingo).
+                La planificación mensual está habilitada hasta <strong>1 mes por adelantado</strong> (hasta el <?= esc(fecha_ar($fechaMaxima)) ?>).
+                Tienen prioridad quienes aún no completaron su carga horaria; quienes ya la cumplieron pueden seguir tomando turnos como <strong>horas extras cubiertas</strong> (siempre que no se superpongan).
             </div>
         </div>
 
@@ -65,7 +64,6 @@ $faltanDatos = $enfermeros === [] || $sectores === [] || $tipos === [];
             <div class="row g-3">
                 <div class="col-12">
                     <?php if (count($enfermeros) > 8): ?>
-                        <!-- Buscador: filtra la lista de enfermeros/as mientras se escribe -->
                         <label for="buscar-enfermero" class="form-label small fw-semibold mb-1">Buscar enfermero/a</label>
                         <input type="search" id="buscar-enfermero" class="form-control mb-2" placeholder="Apellido o nombre"
                                aria-controls="usuario_id" data-filtrar-select="#usuario_id" autocomplete="off">
@@ -76,15 +74,21 @@ $faltanDatos = $enfermeros === [] || $sectores === [] || $tipos === [];
                             <option value="" <?= $valor('usuario_id') === '' || $valor('usuario_id') === '0' ? 'selected' : '' ?> disabled>Elija un enfermero/a</option>
                             <?php foreach ($enfermeros as $e): ?>
                                 <?php
-                                $info   = $disponibilidad[(int) $e->id] ?? null;
-                                $maximo = (int) $e->carga_horaria_max;
-                                $horas  = $info !== null
-                                    ? \App\Models\AsignacionModel::horasTexto($info['minutos']) . " de {$maximo} h esta semana"
-                                    : "máximo {$maximo} h por semana";
+                                $info    = $disponibilidad[(int) $e->id] ?? null;
+                                $maximo  = (int) $e->carga_horaria_max;
+                                $horas   = $info !== null
+                                    ? \App\Models\AsignacionModel::horasTexto($info['minutos']) . " de {$maximo} h"
+                                    : "máximo {$maximo} h";
                                 $noPuede = $info !== null && $info['motivo'] !== '' && $valor('usuario_id') !== (string) $e->id;
+                                $etiquetaExtra = '';
+                                if ($info !== null && ! $noPuede) {
+                                    $etiquetaExtra = $info['es_extra']
+                                        ? ' · [Cumplió carga - Hora Extra]'
+                                        : ' · [Prioridad - Dentro de carga]';
+                                }
                                 ?>
                                 <option value="<?= (int) $e->id ?>" <?= $valor('usuario_id') === (string) $e->id ? 'selected' : '' ?> <?= $noPuede ? 'disabled' : '' ?>>
-                                    <?= esc($e->getNombreCompleto()) ?> · <?= esc($horas) ?><?= $noPuede ? ' · no disponible: ' . esc($info['motivo']) : '' ?>
+                                    <?= esc($e->getNombreCompleto()) ?> · <?= esc($horas) ?><?= esc($etiquetaExtra) ?><?= $noPuede ? ' · no disponible: ' . esc($info['motivo']) : '' ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -92,11 +96,9 @@ $faltanDatos = $enfermeros === [] || $sectores === [] || $tipos === [];
                         <?= feedback_campo('usuario_id') ?>
                     </div>
                     <div id="ayuda-enfermero" class="form-text">
-                        Solo aparecen los enfermeros/as activos.
+                        Ordenados por prioridad: primero aparecen quienes aún tienen horas disponibles dentro de su contrato y luego quienes pueden cubrir horas extras.
                         <?php if ($calculoPara !== ''): ?>
-                            Las horas y la disponibilidad están calculadas para <strong><?= esc($calculoPara) ?></strong>; si cambia la fecha o el turno, se vuelve a controlar al guardar.
-                        <?php else: ?>
-                            Al lado figura su carga horaria máxima semanal.
+                            Calculado para <strong><?= esc($calculoPara) ?></strong>.
                         <?php endif; ?>
                     </div>
                 </div>
@@ -111,7 +113,7 @@ $faltanDatos = $enfermeros === [] || $sectores === [] || $tipos === [];
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <label for="sector_id">Sector *</label>
+                        <label for="sector_id">Zona / Sector *</label>
                         <?= feedback_campo('sector_id') ?>
                     </div>
                 </div>
@@ -120,11 +122,11 @@ $faltanDatos = $enfermeros === [] || $sectores === [] || $tipos === [];
                     <div class="form-floating">
                         <input type="date" class="form-control<?= clase_invalido('fecha') ?>" id="fecha" name="fecha"
                                value="<?= esc($valor('fecha')) ?>" min="<?= date('Y-m-d') ?>" max="<?= esc($fechaMaxima ?? '') ?>" required
-                               aria-describedby="ayuda-fecha" data-mensaje="Elija una fecha de hoy en adelante.">
+                               aria-describedby="ayuda-fecha" data-mensaje="Elija una fecha válida dentro del período habilitado.">
                         <label for="fecha">Fecha de inicio del turno *</label>
                         <?= feedback_campo('fecha') ?>
                     </div>
-                    <div id="ayuda-fecha" class="form-text">Día en que empieza el turno. Un turno noche termina al día siguiente.</div>
+                    <div id="ayuda-fecha" class="form-text">Habilitado hasta <?= esc(fecha_ar($fechaMaxima)) ?> (1 mes por adelantado).</div>
                 </div>
 
                 <div class="col-12">
@@ -132,12 +134,13 @@ $faltanDatos = $enfermeros === [] || $sectores === [] || $tipos === [];
                         <select class="form-select<?= clase_invalido('tipo_turno_id') ?>" id="tipo_turno_id" name="tipo_turno_id" required data-mensaje="Elija el turno.">
                             <option value="" <?= in_array($valor('tipo_turno_id'), ['', '0'], true) ? 'selected' : '' ?> disabled>Elija un turno</option>
                             <?php foreach ($tipos as $t): ?>
-                                <option value="<?= (int) $t->id ?>" <?= $valor('tipo_turno_id') === (string) $t->id ? 'selected' : '' ?>>
+                                <option value="<?= (int) $t->id ?>" data-sector="<?= (int) $t->sector_id ?>"
+                                        <?= $valor('tipo_turno_id') === (string) $t->id ? 'selected' : '' ?>>
                                     <?= esc($t->nombre) ?> · <?= esc($t->rangoTexto()) ?> · <?= esc($t->duracionTexto()) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <label for="tipo_turno_id">Turno (franja horaria) *</label>
+                        <label for="tipo_turno_id">Turno de la zona (franja horaria) *</label>
                         <?= feedback_campo('tipo_turno_id') ?>
                     </div>
                 </div>
@@ -160,6 +163,36 @@ $faltanDatos = $enfermeros === [] || $sectores === [] || $tipos === [];
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const selSector = document.getElementById('sector_id');
+    const selTipo   = document.getElementById('tipo_turno_id');
+    if (!selSector || !selTipo) return;
+
+    function filtrarTurnosPorSector() {
+        const sectorId = selSector.value;
+        let actualValido = false;
+
+        Array.from(selTipo.options).forEach(opt => {
+            if (!opt.value) return;
+            const coincide = sectorId !== '' && opt.dataset.sector === sectorId;
+            opt.hidden   = !coincide;
+            opt.disabled = !coincide;
+            if (opt.selected && coincide) {
+                actualValido = true;
+            }
+        });
+
+        if (!actualValido) {
+            selTipo.value = '';
+        }
+    }
+
+    selSector.addEventListener('change', filtrarTurnosPorSector);
+    filtrarTurnosPorSector();
+});
+</script>
 
 <?php if ($editando): ?>
     <div class="modal fade" id="modalEliminarTurno" tabindex="-1" aria-labelledby="tituloEliminarTurno" aria-hidden="true">

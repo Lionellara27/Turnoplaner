@@ -15,21 +15,13 @@ use App\Models\UsuarioModel;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
-use DateTimeImmutable;
 
 /**
- * HU-13: asignación individual de turnos con control de superposición y de carga horaria semanal.
- * Permite reasignar (editar) o eliminar turnos que todavía no terminaron.
- *
- * Responde de dos formas con las mismas validaciones:
- * - formulario común (redirige con mensajes), y
- * - AJAX desde el modal de la cuadrícula (HU-14): devuelve JSON con los errores o el resultado.
+ * HU-13: asignación mensual de turnos con control de superposición, horas extras con prioridad
+ * y ventana habilitada con 1 mes de anticipación.
  */
 class Asignaciones extends BaseController
 {
-    /** Hasta cuántos días hacia adelante se pueden asignar turnos. */
-    private const DIAS_MAXIMOS = 365;
-
     protected AsignacionModel $modelo;
 
     public function __construct()
@@ -72,7 +64,15 @@ class Asignaciones extends BaseController
             return $this->fallar($errores);
         }
 
-        return $this->exito($sector, $fecha, "Turno asignado: {$enfermero->getNombreCompleto()} · {$sector->nombre} · {$tipo->nombre} ({$tipo->rangoTexto()}) el " . fecha_larga($fecha) . '.');
+        $notaExtra = $asignacion->esExtra()
+            ? ' (registrado como HORA EXTRA cubierta: ' . AsignacionModel::horasTexto((int) $asignacion->minutos_extra) . ')'
+            : '';
+
+        return $this->exito(
+            $sector,
+            $fecha,
+            "Turno asignado: {$enfermero->getNombreCompleto()} · {$sector->nombre} · {$tipo->nombre} ({$tipo->rangoTexto()}) el " . fecha_larga($fecha) . ".{$notaExtra}"
+        );
     }
 
     /** Formulario para reasignar un turno que todavía no terminó. */
@@ -89,7 +89,7 @@ class Asignaciones extends BaseController
         ]);
     }
 
-    /** Guarda la reasignación (cambio de enfermero/a, sector, turno o fecha). */
+    /** Guarda la reasignación. */
     public function actualizar(int $id): ResponseInterface
     {
         $asignacion = $this->buscarFutura($id);
@@ -115,10 +115,18 @@ class Asignaciones extends BaseController
             return $this->fallar($errores);
         }
 
-        return $this->exito($sector, $fecha, "Turno reasignado: {$enfermero->getNombreCompleto()} · {$sector->nombre} · {$tipo->nombre} el " . fecha_larga($fecha) . '.');
+        $notaExtra = $asignacion->esExtra()
+            ? ' (registrado como HORA EXTRA cubierta: ' . AsignacionModel::horasTexto((int) $asignacion->minutos_extra) . ')'
+            : '';
+
+        return $this->exito(
+            $sector,
+            $fecha,
+            "Turno reasignado: {$enfermero->getNombreCompleto()} · {$sector->nombre} · {$tipo->nombre} el " . fecha_larga($fecha) . ".{$notaExtra}"
+        );
     }
 
-    /** Elimina (baja lógica) un turno que todavía no terminó (formulario o modal AJAX de la cuadrícula). */
+    /** Elimina (baja lógica) un turno que todavía no terminó. */
     public function eliminar(int $id): ResponseInterface
     {
         $asignacion = $this->buscarFutura($id);
@@ -142,7 +150,7 @@ class Asignaciones extends BaseController
 
         $destino = base_url('admin/planificador') . '?' . http_build_query([
             'sector' => (int) $asignacion->sector_id,
-            'semana' => AsignacionModel::lunesDe((string) $asignacion->fecha),
+            'mes'    => substr((string) $asignacion->fecha, 0, 7),
         ]);
 
         return redirect()->to($destino)->with('success', $mensaje);
@@ -179,7 +187,6 @@ class Asignaciones extends BaseController
             return ['errores' => $this->validator->getErrors()];
         }
 
-        // Formato exacto AAAA-MM-DD: "2026-11-4" pasaría un valid_date y compararía mal como texto.
         $fecha = $this->fechaValida((string) $datos['fecha']);
         if ($fecha === null) {
             return ['errores' => ['fecha' => 'Ingrese una fecha válida.']];
@@ -187,8 +194,10 @@ class Asignaciones extends BaseController
         if ($fecha < date('Y-m-d')) {
             return ['errores' => ['fecha' => 'Solo se pueden asignar turnos de hoy en adelante.']];
         }
-        if ($fecha > date('Y-m-d', strtotime('+' . self::DIAS_MAXIMOS . ' days'))) {
-            return ['errores' => ['fecha' => 'Solo se pueden asignar turnos hasta un año hacia adelante.']];
+
+        $fechaMaxima = AsignacionModel::fechaMaximaHabilitada();
+        if ($fecha > $fechaMaxima) {
+            return ['errores' => ['fecha' => 'La planificación mensual se habilita con 1 mes de anticipación (máximo hasta ' . fecha_ar($fechaMaxima) . ').']];
         }
 
         $errores = [];
@@ -206,13 +215,14 @@ class Asignaciones extends BaseController
         $tipo = (new TipoTurnoModel())->find((int) $datos['tipo_turno_id']);
         if (! $tipo instanceof TipoTurno) {
             $errores['tipo_turno_id'] = 'El turno elegido no está activo.';
+        } elseif ($sector instanceof Sector && (int) $tipo->sector_id !== (int) $sector->id) {
+            $errores['tipo_turno_id'] = "El turno «{$tipo->nombre}» no corresponde al sector «{$sector->nombre}».";
         }
 
         if ($errores !== []) {
             return ['errores' => $errores];
         }
 
-        // Un turno de hoy que ya terminó (por ejemplo la mañana, a las 15:00) no se puede asignar.
         if (AsignacionModel::calcularHorario($fecha, $tipo)['fin'] <= date('Y-m-d H:i:s')) {
             return ['errores' => ['tipo_turno_id' => "El turno {$tipo->nombre} de hoy ya terminó. Elija otra franja u otra fecha."]];
         }
@@ -220,25 +230,15 @@ class Asignaciones extends BaseController
         return [$enfermero, $sector, $tipo, $fecha];
     }
 
-    /**
-     * Respuesta de error: JSON para el modal de la cuadrícula, o volver al formulario.
-     *
-     * @param array<string, string> $errores
-     */
     private function fallar(array $errores): ResponseInterface
     {
         if ($this->request->isAJAX()) {
-            // El token CSRF se regenera en cada envío: se devuelve el nuevo para el próximo intento.
             return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'errores' => $errores, 'csrf' => csrf_hash()]);
         }
 
         return $this->volverConErrores($errores);
     }
 
-    /**
-     * Respuesta de éxito: JSON para el modal (el mensaje queda en flash para cuando la cuadrícula se recarga),
-     * o redirección a la cuadrícula de esa semana.
-     */
     private function exito(Sector $sector, string $fecha, string $mensaje): ResponseInterface
     {
         if ($this->request->isAJAX()) {
@@ -257,7 +257,6 @@ class Asignaciones extends BaseController
     {
         $horario = AsignacionModel::calcularHorario($fecha, $tipo);
 
-        // Strings, igual que los devuelve la base, para que hasChanged() compare bien.
         return [
             'usuario_id'       => (string) $enfermero->id,
             'sector_id'        => (string) $sector->id,
@@ -270,9 +269,6 @@ class Asignaciones extends BaseController
     }
 
     /**
-     * Listas para los selects, valores precargados y, si ya se sabe el turno y la fecha,
-     * la disponibilidad de cada enfermero/a (horas de la semana y motivo si no puede).
-     *
      * @param array<string, mixed> $previo
      *
      * @return array<string, mixed>
@@ -291,9 +287,12 @@ class Asignaciones extends BaseController
             }
         }
 
-        $disponibilidad = ($tipo !== null && $fecha !== null)
-            ? $this->modelo->disponibilidad($enfermeros, $tipo, $fecha, $excluirId)
-            : [];
+        $disponibilidad = [];
+        if ($tipo !== null && $fecha !== null) {
+            $priorizados    = $this->modelo->disponibilidadConPrioridad($enfermeros, $tipo, $fecha, $excluirId);
+            $enfermeros     = $priorizados['ordenados'];
+            $disponibilidad = $priorizados['info'];
+        }
 
         return [
             'enfermeros'     => $enfermeros,
@@ -302,11 +301,10 @@ class Asignaciones extends BaseController
             'previo'         => $previo,
             'disponibilidad' => $disponibilidad,
             'calculoPara'    => $tipo !== null && $fecha !== null ? "{$tipo->nombre} del " . fecha_larga($fecha) : '',
-            'fechaMaxima'    => date('Y-m-d', strtotime('+' . self::DIAS_MAXIMOS . ' days')),
+            'fechaMaxima'    => AsignacionModel::fechaMaximaHabilitada(),
         ];
     }
 
-    /** Busca un turno que todavía no terminó; los terminados no se modifican. */
     private function buscarFutura(int $id): Asignacion|RedirectResponse
     {
         $asignacion = $this->modelo->find($id);
@@ -327,8 +325,7 @@ class Asignaciones extends BaseController
     {
         return redirect()->to(base_url('admin/planificador') . '?' . http_build_query([
             'sector' => (int) $sector->id,
-            'semana' => AsignacionModel::lunesDe($fecha),
+            'mes'    => substr($fecha, 0, 7),
         ]));
     }
-
 }
