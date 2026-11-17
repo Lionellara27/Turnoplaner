@@ -5,26 +5,22 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Entities\TipoTurno;
+use App\Models\SectorModel;
 use App\Models\TipoTurnoModel;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\RedirectResponse;
 
-/**
- * ABMC de tipos de turno (rol ADMIN).
- *
- * - HU-11: alta con cálculo automático de la duración (incluye turnos que cruzan la medianoche).
- * - HU-12: listado, edición, baja lógica y reactivación. La baja se rechaza si el tipo de turno
- *          tiene asignaciones futuras (se activa cuando exista la tabla de asignaciones, HU-13).
- */
 class TiposTurno extends BaseController
 {
     private const FILTROS_ESTADO = ['ACTIVO', 'BAJA', 'TODOS'];
 
     protected TipoTurnoModel $modelo;
+    protected SectorModel $sectorModelo;
 
     public function __construct()
     {
-        $this->modelo = new TipoTurnoModel();
+        $this->modelo       = new TipoTurnoModel();
+        $this->sectorModelo = new SectorModel();
     }
 
     /** HU-12: listado. */
@@ -35,12 +31,17 @@ class TiposTurno extends BaseController
             $estado = 'ACTIVO';
         }
         $busqueda = mb_substr(trim($this->textoGet('q')), 0, 60);
+        $sectorId = (int) $this->textoGet('sector_id');
+        if ($sectorId <= 0) {
+            $sectorId = null;
+        }
 
         return view('admin/tipos_turno/index', [
-            'titulo'  => 'Tipos de turno - TurnoPlaner',
-            'tipos'   => $this->modelo->listar($estado, $busqueda),
-            'pager'   => $this->modelo->pager,
-            'filtros' => ['estado' => $estado, 'q' => $busqueda],
+            'titulo'   => 'Tipos de turno - TurnoPlaner',
+            'tipos'    => $this->modelo->listar($estado, $busqueda, $sectorId),
+            'pager'    => $this->modelo->pager,
+            'sectores' => $this->sectorModelo->where('estado', 'ACTIVO')->orderBy('nombre', 'ASC')->findAll(),
+            'filtros'  => ['estado' => $estado, 'q' => $busqueda, 'sector_id' => $sectorId],
         ]);
     }
 
@@ -48,8 +49,9 @@ class TiposTurno extends BaseController
     public function crear(): string
     {
         return view('admin/tipos_turno/create', [
-            'titulo' => 'Nuevo tipo de turno - TurnoPlaner',
-            'paleta' => TipoTurnoModel::PALETA,
+            'titulo'   => 'Nuevo tipo de turno - TurnoPlaner',
+            'paleta'   => TipoTurnoModel::PALETA,
+            'sectores' => $this->sectorModelo->where('estado', 'ACTIVO')->orderBy('nombre', 'ASC')->findAll(),
         ]);
     }
 
@@ -75,10 +77,22 @@ class TiposTurno extends BaseController
     /** HU-12: formulario de edición. */
     public function editar(int $id): string
     {
+        $tipo = $this->buscar($id);
+
+        // Traemos sectores activos (y si el sector actual del turno estuviera dado de baja, lo incluimos igual para no perder la selección)
+        $sectores = $this->sectorModelo
+            ->groupStart()
+                ->where('estado', 'ACTIVO')
+                ->orWhere('id', (int) $tipo->sector_id)
+            ->groupEnd()
+            ->orderBy('nombre', 'ASC')
+            ->findAll();
+
         return view('admin/tipos_turno/edit', [
-            'titulo' => 'Editar tipo de turno - TurnoPlaner',
-            'tipo'   => $this->buscar($id),
-            'paleta' => TipoTurnoModel::PALETA,
+            'titulo'   => 'Editar tipo de turno - TurnoPlaner',
+            'tipo'     => $tipo,
+            'paleta'   => TipoTurnoModel::PALETA,
+            'sectores' => $sectores,
         ]);
     }
 
@@ -94,10 +108,11 @@ class TiposTurno extends BaseController
 
         $tipo->fill($this->datosTipo($datos));
 
-        if (($tipo->hasChanged('hora_inicio') || $tipo->hasChanged('hora_fin')) && $this->modelo->tieneAsignacionesFuturas($id, 'tipo_turno_id')) {
+        if (($tipo->hasChanged('hora_inicio') || $tipo->hasChanged('hora_fin') || $tipo->hasChanged('sector_id'))
+            && $this->modelo->tieneAsignacionesFuturas($id, 'tipo_turno_id')) {
             return $this->volverConErrores([
-                'hora_inicio' => "No se puede cambiar el horario de «{$tipo->nombre}»: tiene turnos asignados desde hoy en adelante con el horario actual. "
-                    . 'Cree un tipo de turno nuevo con el horario distinto, o reasigne esos turnos primero.',
+                'hora_inicio' => "No se puede cambiar el horario ni la zona de «{$tipo->nombre}»: tiene turnos asignados desde hoy en adelante. "
+                    . 'Cree un tipo de turno nuevo o reasigne esos turnos primero.',
             ]);
         }
 
@@ -113,7 +128,7 @@ class TiposTurno extends BaseController
             ->with('success', "Tipo de turno «{$tipo->nombre}» actualizado ({$tipo->rangoTexto()}, {$tipo->duracionTexto()}).");
     }
 
-    /** HU-12: baja lógica, rechazada si hay asignaciones futuras con este tipo de turno. */
+    /** HU-12: baja lógica. */
     public function darDeBaja(int $id): RedirectResponse
     {
         $tipo = $this->buscar($id);
@@ -122,7 +137,6 @@ class TiposTurno extends BaseController
             return redirect()->back()->with('info', "«{$tipo->nombre}» ya estaba dado de baja.");
         }
 
-        // Control y baja en una misma transacción con bloqueo (nadie puede asignar en el medio).
         $motivo = $this->modelo->darDeBajaSiLibre($id, 'tipo_turno_id');
         if ($motivo !== null) {
             return redirect()->back()->with('error', "No se puede dar de baja «{$tipo->nombre}»: {$motivo}");
@@ -146,23 +160,27 @@ class TiposTurno extends BaseController
     }
 
     /**
-     * Valida el formulario. Devuelve null si está todo bien, o la redirección con los errores.
-     *
      * @param array<string, mixed> $datos
      */
     private function validar(array $datos, ?int $id = null): ?RedirectResponse
     {
-        $ignorar = $id !== null ? ",id,{$id}" : '';
-        $hora    = 'regex_match[/^([01][0-9]|2[0-3]):[0-5][0-9]$/]';
+        $hora = 'regex_match[/^([01][0-9]|2[0-3]):[0-5][0-9]$/]';
 
         $reglas = [
+            'sector_id' => [
+                'rules'  => 'required|is_natural_no_zero|is_not_unique[sectores.id]',
+                'errors' => [
+                    'required'           => 'Debe seleccionar la zona de trabajo (sector).',
+                    'is_natural_no_zero' => 'Seleccione una zona de trabajo válida.',
+                    'is_not_unique'      => 'La zona de trabajo seleccionada no existe.',
+                ],
+            ],
             'nombre' => [
-                'rules'  => "required|min_length[3]|max_length[60]|is_unique[tipos_turno.nombre{$ignorar}]",
+                'rules'  => 'required|min_length[3]|max_length[60]',
                 'errors' => [
                     'required'   => 'El nombre del turno es obligatorio.',
                     'min_length' => 'El nombre debe tener al menos 3 caracteres.',
                     'max_length' => 'El nombre no puede superar los 60 caracteres.',
-                    'is_unique'  => 'Ya existe un tipo de turno con ese nombre (si está dado de baja, búsquelo con el filtro «Dados de baja» y reactívelo).',
                 ],
             ],
             'hora_inicio' => [
@@ -183,6 +201,24 @@ class TiposTurno extends BaseController
             return $this->volverConErrores($this->validator->getErrors());
         }
 
+        // Validar unicidad de nombre DENTRO del mismo sector (incluyendo dados de baja)
+        $sectorId = (int) $datos['sector_id'];
+        $nombre   = trim((string) $datos['nombre']);
+
+        $duplicado = $this->modelo->withDeleted()
+            ->where('sector_id', $sectorId)
+            ->where('nombre', $nombre);
+
+        if ($id !== null) {
+            $duplicado->where('id !=', $id);
+        }
+
+        if ($duplicado->first() !== null) {
+            return $this->volverConErrores([
+                'nombre' => 'Ya existe un tipo de turno con ese nombre en la zona seleccionada (si está dado de baja, búsquelo con el filtro «Dados de baja» y reactívelo).',
+            ]);
+        }
+
         if (TipoTurnoModel::calcularDuracionMinutos((string) $datos['hora_inicio'], (string) $datos['hora_fin']) === 0) {
             return $this->volverConErrores(['hora_fin' => 'La hora de fin no puede ser igual a la de inicio.']);
         }
@@ -200,9 +236,9 @@ class TiposTurno extends BaseController
         $inicio = (string) $datos['hora_inicio'];
         $fin    = (string) $datos['hora_fin'];
 
-        // Formato igual al que devuelve la base (HH:MM:SS) para que hasChanged() compare bien.
         return [
-            'nombre'           => (string) $datos['nombre'],
+            'sector_id'        => (int) $datos['sector_id'],
+            'nombre'           => trim((string) $datos['nombre']),
             'hora_inicio'      => $inicio . ':00',
             'hora_fin'         => $fin . ':00',
             'duracion_minutos' => (string) TipoTurnoModel::calcularDuracionMinutos($inicio, $fin),

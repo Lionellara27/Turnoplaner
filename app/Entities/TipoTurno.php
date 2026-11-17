@@ -15,6 +15,7 @@ class TipoTurno extends Entity
 
     protected $casts = [
         'id'               => 'integer',
+        'sector_id'        => 'integer',
         'duracion_minutos' => 'integer',
     ];
 

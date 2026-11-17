@@ -79,36 +79,6 @@ VALUES
      '$2y$10$jXySqRJ1ur32wT/fMe1rP.vxWLoCXxMVtVMELnZYgiuE9PLDbof5u', 'ENFERMERO', 'Guardia y Emergencias', 40, 'ACTIVO', 1);
 
 -- ------------------------------------------------------------
---  TABLA: tipos_turno   (HU-11 y HU-12)
---  Franjas horarias rotativas. La duracion la calcula el sistema
---  (un turno de 22:00 a 06:00 cruza la medianoche y dura 8 h).
---  Baja logica: estado + deleted_at, nunca DELETE.
--- ------------------------------------------------------------
-DROP TABLE IF EXISTS tipos_turno;
-
-CREATE TABLE tipos_turno (
-    id                  INT UNSIGNED      NOT NULL AUTO_INCREMENT,
-    nombre              VARCHAR(60)       NOT NULL,
-    hora_inicio         TIME              NOT NULL,
-    hora_fin            TIME              NOT NULL,
-    duracion_minutos    SMALLINT UNSIGNED NOT NULL,          -- calculada al guardar
-    color               CHAR(7)           NOT NULL DEFAULT '#307f6d',  -- etiqueta para la cuadricula
-    estado              ENUM('ACTIVO', 'BAJA') NOT NULL DEFAULT 'ACTIVO',
-    created_at          DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at          DATETIME          NULL DEFAULT NULL,
-    deleted_at          DATETIME          NULL DEFAULT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uq_tipos_turno_nombre (nombre),
-    KEY idx_tipos_turno_estado (estado)
-) ENGINE=InnoDB;
-
-INSERT INTO tipos_turno (nombre, hora_inicio, hora_fin, duracion_minutos, color) VALUES
-    ('Mañana',           '06:00:00', '14:00:00', 480, '#c98a00'),
-    ('Tarde',            '14:00:00', '22:00:00', 480, '#b34700'),
-    ('Noche',            '22:00:00', '06:00:00', 480, '#3d5a99'),
-    ('Guardia especial', '08:00:00', '20:00:00', 720, '#7b4ea3');
-
--- ------------------------------------------------------------
 --  TABLA: sectores   (HU-09 y HU-10)
 --  Servicios del hospital. dotacion_minima = cantidad minima de
 --  enfermeros/as requerida en cualquier turno del sector.
@@ -135,6 +105,40 @@ INSERT INTO sectores (nombre, descripcion, es_critico, dotacion_minima) VALUES
     ('Guardia',             'Guardia general y emergencias.',                     1, 2),
     ('Neonatología',        'Cuidados neonatales e incubadoras.',                 1, 2),
     ('Internación general', 'Sala de internación clínica y quirúrgica.',          0, 2);
+
+-- ------------------------------------------------------------
+--  TABLA: tipos_turno   (HU-11 y HU-12)
+--  Franjas horarias rotativas. La duracion la calcula el sistema
+--  (un turno de 22:00 a 06:00 cruza la medianoche y dura 8 h).
+--  Baja logica: estado + deleted_at, nunca DELETE.
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS tipos_turno;
+
+CREATE TABLE tipos_turno (
+    id                  INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+    sector_id           INT UNSIGNED      NOT NULL, 
+    nombre              VARCHAR(60)       NOT NULL,
+    hora_inicio         TIME              NOT NULL,
+    hora_fin            TIME              NOT NULL,
+    duracion_minutos    SMALLINT UNSIGNED NOT NULL,          -- calculada al guardar
+    color               CHAR(7)           NOT NULL DEFAULT '#307f6d',  -- etiqueta para la cuadricula
+    estado              ENUM('ACTIVO', 'BAJA') NOT NULL DEFAULT 'ACTIVO',
+    created_at          DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME          NULL DEFAULT NULL,
+    deleted_at          DATETIME          NULL DEFAULT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_tipos_turno_nombre (sector_id, nombre),
+    KEY idx_tipos_turno_estado (estado),
+    KEY inx_tipos_turno_sector (sector_id),
+    CONSTRAINT fk_tipos_turno_sector FOREIGN KEY (sector_id) REFERENCES sectores (id)
+) ENGINE=InnoDB;
+
+INSERT INTO tipos_turno (nombre, hora_inicio, hora_fin, duracion_minutos, color) VALUES
+    ('Mañana',           '06:00:00', '14:00:00', 480, '#c98a00'),
+    ('Tarde',            '14:00:00', '22:00:00', 480, '#b34700'),
+    ('Noche',            '22:00:00', '06:00:00', 480, '#3d5a99'),
+    ('Guardia especial', '08:00:00', '20:00:00', 720, '#7b4ea3');
+
 
 -- ------------------------------------------------------------
 --  TABLA: asignaciones   (HU-13 y HU-14)
