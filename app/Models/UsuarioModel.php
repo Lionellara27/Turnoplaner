@@ -149,6 +149,8 @@ class UsuarioModel extends Model
             $this->withDeleted();
         } elseif ($estado === 'PENDIENTE') {
             $this->where('debe_cambiar_pass', 1);
+        } elseif ($estado === 'ACTIVO') {
+            $this->where('debe_cambiar_pass', 0);
         }
 
         if ($especialidad !== '') {
