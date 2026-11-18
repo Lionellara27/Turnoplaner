@@ -21,6 +21,24 @@ $urlInicio   = static fn (string $mes, ?int $secId = null): string => base_url('
     'mes'    => $mes,
 ], '', '&amp;');
 
+// Vigencia histórica: muestra cada tipo de turno solo desde su creación y conserva los dados de baja en el pasado
+$turnoAplicaEnDia = static function (\App\Entities\TipoTurno $t, string $dia, array $asignados): bool {
+    if ($asignados !== []) {
+        return true;
+    }
+    $creado = $t->created_at ? substr((string) $t->created_at, 0, 10) : null;
+    if ($creado !== null && $dia < $creado) {
+        return false;
+    }
+    if (! $t->estaActivo()) {
+        $baja = $t->deleted_at ? substr((string) $t->deleted_at, 0, 10) : date('Y-m-d');
+        if ($dia >= $baja) {
+            return false;
+        }
+    }
+    return true;
+};
+
 // Prepara estructura JSON segura para alimentar la ventana modal al hacer clic en un día
 $detalleDias = [];
 if ($sector !== null && $tipos !== []) {
@@ -32,10 +50,15 @@ if ($sector !== null && $tipos !== []) {
             }
             $turnosDia      = [];
             $totalAsignados = 0;
-            $totalRequerido = count($tipos) * $minimoDia;
+            $tiposVigentes  = 0;
 
             foreach ($tipos as $t) {
                 $asignados = $grilla[$dia][(int) $t->id] ?? [];
+                if (! $turnoAplicaEnDia($t, $dia, $asignados)) {
+                    continue;
+                }
+                $tiposVigentes++;
+
                 $enfermerosLista = [];
                 $activosCount    = 0;
 
@@ -45,10 +68,9 @@ if ($sector !== null && $tipos !== []) {
                         $activosCount++;
                     }
                     $enfermerosLista[] = [
-                        'nombre'       => $a->nombreEnfermero(),
-                        'matricula'    => $a->matriculaEnfermero(),
-                        'especialidad' => $a->especialidadEnfermero(),
-                        'de_baja'      => $deBaja,
+                        'nombre'    => $a->nombreEnfermero(),
+                        'matricula' => $a->matriculaEnfermero(),
+                        'de_baja'   => $deBaja,
                     ];
                 }
 
@@ -57,7 +79,6 @@ if ($sector !== null && $tipos !== []) {
                     'nombre'     => (string) $t->nombre,
                     'horario'    => $t->rangoTexto(),
                     'color'      => (string) $t->color,
-                    'colorTexto' => \App\Entities\TipoTurno::textoSobre((string) $t->color),
                     'cubiertos'  => $activosCount,
                     'minimo'     => $minimoDia,
                     'enfermeros' => $enfermerosLista,
@@ -69,7 +90,7 @@ if ($sector !== null && $tipos !== []) {
                 'titulo'         => ucfirst(dia_semana($dia)) . ', ' . fecha_ar($dia),
                 'esHoy'          => $dia === $hoy,
                 'totalAsignados' => $totalAsignados,
-                'totalRequerido' => $totalRequerido,
+                'totalRequerido' => $tiposVigentes * $minimoDia,
                 'urlPlanificar'  => base_url('admin/planificador') . '?' . http_build_query([
                     'sector' => $sector->id,
                     'fecha'  => $dia,
@@ -258,6 +279,7 @@ if ($sector !== null && $tipos !== []) {
                                     <?php
                                     $perteneceMes = substr($dia, 0, 7) === $anioMes;
                                     $esHoy        = $dia === $hoy;
+                                    $esPasado     = $dia < $hoy;
                                     ?>
                                     <?php if (! $perteneceMes): ?>
                                         <td class="tp-celda-dia--fuera">
@@ -267,7 +289,7 @@ if ($sector !== null && $tipos !== []) {
                                             <div class="text-center py-4 opacity-50">—</div>
                                         </td>
                                     <?php else: ?>
-                                        <td class="tp-celda-dia <?= $esHoy ? 'tp-celda-dia--hoy' : '' ?>"
+                                        <td class="tp-celda-dia <?= $esHoy ? 'tp-celda-dia--hoy' : ($esPasado ? 'tp-celda-dia--pasado' : '') ?>"
                                             role="button"
                                             tabindex="0"
                                             data-abrir-dia="<?= esc($dia, 'attr') ?>"
@@ -287,20 +309,18 @@ if ($sector !== null && $tipos !== []) {
                                                 <?php foreach ($tipos as $t): ?>
                                                     <?php
                                                     $asignados = $grilla[$dia][(int) $t->id] ?? [];
+                                                    if (! $turnoAplicaEnDia($t, $dia, $asignados)) {
+                                                        continue;
+                                                    }
                                                     $activosT  = array_values(array_filter($asignados, static fn ($a): bool => ! $a->enfermeroDeBaja()));
                                                     $cant      = count($activosT);
                                                     $min       = (int) $sector->dotacion_minima;
                                                     $claseCupo = $cant >= $min ? 'tp-cupo--ok' : ($cant > 0 ? 'tp-cupo--parcial' : 'tp-cupo--vacio');
                                                     ?>
-                                                    <div class="tp-turno-pill" style="--color-turno: <?= esc($t->color, 'attr') ?>;">
+                                                    <div class="tp-turno-pill" style="border-left: 4px solid <?= esc($t->color, 'attr') ?> !important;">
                                                         <span class="tp-turno-pill__nombre text-truncate"><?= esc($t->nombre) ?></span>
                                                         <span class="tp-turno-pill__cupo <?= $claseCupo ?>"><?= $cant ?>/<?= $min ?></span>
                                                     </div>
-                                                    <?php if ($activosT !== []): ?>
-                                                        <div class="px-1 text-truncate text-body-secondary" style="font-size: 0.68rem;">
-                                                            <?= esc(implode(' · ', array_map(static fn ($a): string => $a->nombreEnfermero(), $activosT))) ?>
-                                                        </div>
-                                                    <?php endif; ?>
                                                 <?php endforeach; ?>
                                             </div>
                                         </td>
@@ -317,8 +337,8 @@ if ($sector !== null && $tipos !== []) {
                 <?php foreach ($semanas as $semana): ?>
                     <?php foreach ($semana as $dia): ?>
                         <?php if (substr($dia, 0, 7) !== $anioMes) continue; ?>
-                        <?php $esHoy = $dia === $hoy; ?>
-                        <div class="border rounded-3 p-3 tp-celda-dia <?= $esHoy ? 'tp-celda-dia--hoy' : '' ?>"
+                        <?php $esHoy = $dia === $hoy; $esPasado = $dia < $hoy; ?>
+                        <div class="border rounded-3 p-3 tp-celda-dia <?= $esHoy ? 'tp-celda-dia--hoy' : ($esPasado ? 'tp-celda-dia--pasado' : '') ?>"
                              role="button" tabindex="0" data-abrir-dia="<?= esc($dia, 'attr') ?>">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span class="fw-bold text-capitalize"><?= esc(dia_semana($dia)) ?> <?= esc(fecha_ar($dia)) ?></span>
@@ -331,11 +351,14 @@ if ($sector !== null && $tipos !== []) {
                                 <?php foreach ($tipos as $t): ?>
                                     <?php
                                     $asignados = $grilla[$dia][(int) $t->id] ?? [];
+                                    if (! $turnoAplicaEnDia($t, $dia, $asignados)) {
+                                        continue;
+                                    }
                                     $cant      = count(array_filter($asignados, static fn ($a): bool => ! $a->enfermeroDeBaja()));
                                     $min       = (int) $sector->dotacion_minima;
                                     $claseCupo = $cant >= $min ? 'tp-cupo--ok' : ($cant > 0 ? 'tp-cupo--parcial' : 'tp-cupo--vacio');
                                     ?>
-                                    <div class="tp-turno-pill" style="--color-turno: <?= esc($t->color, 'attr') ?>;">
+                                    <div class="tp-turno-pill" style="border-left: 4px solid <?= esc($t->color, 'attr') ?> !important;">
                                         <span class="tp-turno-pill__nombre"><?= esc($t->nombre) ?></span>
                                         <span class="tp-turno-pill__cupo <?= $claseCupo ?>"><?= $cant ?>/<?= $min ?></span>
                                     </div>
@@ -452,32 +475,31 @@ document.addEventListener('DOMContentLoaded', function () {
                 cuerpo = '<p class="small text-body-secondary mb-0 fst-italic">Ningún enfermero/a asignado en esta franja.</p>';
             } else {
                 cuerpo = '<div class="row g-2">' + turno.enfermeros.map(function (enf) {
-                    const esp = enf.especialidad
-                        ? '<span class="badge rounded-pill" style="background: var(--color-primario-suave); color: var(--color-primario-oscuro); font-size: 0.68rem;">' + escapar(enf.especialidad) + '</span>'
-                        : '';
                     const baja = enf.de_baja
                         ? '<span class="badge bg-danger-subtle text-danger-emphasis ms-1" style="font-size: 0.65rem;">Baja</span>'
                         : '';
-                    return '<div class="col-12 col-md-4">' +
-                        '<div class="tp-enfermero-card h-100">' +
-                            '<div class="d-flex justify-content-between align-items-start gap-1 mb-1">' +
-                                esp +
-                                '<i class="bi bi-person-badge" style="color: var(--color-primario-oscuro);"></i>' +
+                    return '<div class="col-12 col-sm-6 col-md-4">' +
+                        '<div class="tp-enfermero-card h-100 d-flex align-items-center gap-2">' +
+                            '<div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" ' +
+                                 'style="width: 34px; height: 34px; background: var(--color-primario-suave); color: var(--color-primario-oscuro);">' +
+                                '<i class="bi bi-person-badge"></i>' +
                             '</div>' +
-                            '<div class="fw-semibold text-dark small">' + escapar(enf.nombre) + baja + '</div>' +
-                            '<div class="tp-matricula mt-1">Mat: <strong>' + escapar(enf.matricula) + '</strong></div>' +
+                            '<div class="min-w-0">' +
+                                '<div class="fw-semibold text-dark small text-truncate">' + escapar(enf.nombre) + baja + '</div>' +
+                                '<div class="tp-matricula">Mat: <strong>' + escapar(enf.matricula) + '</strong></div>' +
+                            '</div>' +
                         '</div>' +
                     '</div>';
                 }).join('') + '</div>';
             }
 
             return '<section class="rounded-3 bg-white border p-3 shadow-sm">' +
-                '<div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom">' +
+                '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pb-2 mb-2 border-bottom">' +
                     '<div class="d-flex align-items-center gap-2">' +
-                        '<span class="badge rounded-pill px-2 py-1" style="background-color:' + escapar(turno.color) + '; color:' + escapar(turno.colorTexto) + ';">' +
+                        '<span class="etiqueta-turno" style="--color-turno:' + escapar(turno.color) + ';">' +
                             escapar(turno.nombre) +
                         '</span>' +
-                        '<span class="small text-body-secondary">' + escapar(turno.horario) + '</span>' +
+                        '<span class="small text-body-secondary fw-medium">' + escapar(turno.horario) + '</span>' +
                     '</div>' +
                     '<span class="tp-turno-pill__cupo ' + claseCupo + '">' + turno.cubiertos + '/' + turno.minimo + ' asignados</span>' +
                 '</div>' +

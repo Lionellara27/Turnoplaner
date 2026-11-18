@@ -1,20 +1,30 @@
 /* ==========================================================
-   TurnoPlaner - estilos propios sobre Bootstrap 5
-   Fuente de verdad de la estetica: .docs/DESIGN.md
+   TurnoPlaner - Estilos propios sobre Bootstrap 5
+   Fuente de verdad estética: .docs/DESIGN.md (Sage & Pine)
+
+   ÍNDICE DE SECCIONES:
+   1. Variables y Paleta Sage & Pine
+   2. Base, Tipografía y Accesibilidad (Foco WCAG 2.4.7)
+   3. Barra Superior, Contenido y Pie
+   4. Botones, Alertas y Credenciales
+   5. Login y Activación de Cuenta
+   6. Tarjetas Indicadoras del Panel
+   7. Menú Lateral (Fijo y Compacto)
+   8. Tipos de Turno (Etiquetas y Selectores)
+   9. Planificador Semanal y Mensual (Cuadrícula)
+   10. Mi Cronograma (Vista Enfermero/a)
+   11. Calendario Mensual Sage & Pine (Panel y Modal)
    ========================================================== */
 
+/* ==========================================================
+   1. VARIABLES Y PALETA SAGE & PINE
+   ========================================================== */
 :root {
-    /* Paleta TurnoPlaner Sage & Pine (contraste WCAG AA verificado) */
     --color-primario: #2d6855;
-    /* acento verde bosque médico */
     --color-primario-oscuro: #1b4d3e;
-    /* verde pino bosque clínico (contraste > 9:1 con blanco) */
     --color-primario-hover: #13392e;
-    /* hover de botones primarios */
     --color-primario-suave: #e2efe9;
-    /* salvia suave para realces */
     --color-fondo: #f8faf9;
-    /* superficie lino/porcelana */
     --color-blanco: #ffffff;
     --color-texto: #1a2420;
     --color-texto-suave: #52635b;
@@ -30,13 +40,21 @@
     --radio-lg: 16px;
     --sombra: 0 2px 8px -2px rgba(27, 77, 62, 0.06);
 
-    /* Bootstrap toma estos valores para links y foco */
+    /* Dimensiones de layout */
+    --alto-barra: 60px;
+    --ancho-menu: 240px;
+    --ancho-menu-compacto: 76px;
+
+    /* Bootstrap overrides */
     --bs-link-color: var(--color-primario-oscuro);
     --bs-link-color-rgb: 27, 77, 62;
     --bs-link-hover-color: var(--color-primario-hover);
     --bs-link-hover-color-rgb: 19, 57, 46;
 }
 
+/* ==========================================================
+   2. BASE, TIPOGRAFÍA Y ACCESIBILIDAD
+   ========================================================== */
 body {
     font-family: "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     background: var(--color-fondo);
@@ -58,8 +76,11 @@ h3,
     font-family: "Wix Madefor Display", "Instrument Sans", system-ui, sans-serif;
 }
 
-/* Foco visible (WCAG 2.4.7): contorno de 2 px.
-   Sobre superficies claras va en verde oscuro (4.8:1); sobre superficies verdes, en blanco. */
+.min-w-0 {
+    min-width: 0;
+}
+
+/* Foco visible (WCAG 2.4.7) */
 .btn:focus-visible,
 .form-control:focus,
 .form-select:focus,
@@ -85,13 +106,37 @@ a:focus-visible,
     outline-color: var(--color-blanco);
 }
 
-/* Fila con hover suave. Los textos secundarios usan text-body-secondary (6.5:1 sobre este fondo). */
 .table-hover>tbody>tr:hover>* {
     --bs-table-bg-state: #f4faf8;
 }
 
-/* ---------- Barra superior ---------- */
+@media (max-width: 576px) {
+    .btn {
+        min-height: 44px;
+    }
+
+    .btn-sm {
+        min-height: 36px;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .flex-column.flex-sm-row>.btn {
+        width: 100%;
+    }
+}
+
+@media (min-width: 992px) {
+    .w-lg-auto {
+        width: auto !important;
+    }
+}
+
+/* ==========================================================
+   3. BARRA SUPERIOR, CONTENIDO Y PIE
+   ========================================================== */
 .barra {
+    min-height: var(--alto-barra);
     background: var(--color-primario-oscuro);
     border-bottom: 3px solid var(--color-primario);
     box-shadow: var(--sombra);
@@ -102,11 +147,7 @@ a:focus-visible,
     font-weight: 600;
 }
 
-/* Sobre el verde, texto blanco pleno: la jerarquía se marca con peso, no con opacidad (contraste AA). */
-.barra .nav-link {
-    color: var(--color-blanco);
-}
-
+.barra .nav-link,
 .barra .nav-link:hover,
 .barra .nav-link:focus {
     color: var(--color-blanco);
@@ -131,7 +172,6 @@ a:focus-visible,
     font-size: 0.9rem;
 }
 
-/* ---------- Contenido ---------- */
 .contenido {
     flex: 1;
     width: 100%;
@@ -144,7 +184,9 @@ a:focus-visible,
     padding: 16px;
 }
 
-/* ---------- Encabezado de tarjeta institucional (DESIGN.md 4.1) ---------- */
+/* ==========================================================
+   4. BOTONES, ALERTAS Y CREDENCIALES
+   ========================================================== */
 .tp-card-header {
     background-color: var(--color-primario-oscuro);
     border-bottom: 3px solid var(--color-primario);
@@ -155,7 +197,6 @@ a:focus-visible,
     color: var(--color-blanco);
 }
 
-/* ---------- Boton principal (DESIGN.md 4.2) ---------- */
 .btn-tp {
     --bs-btn-color: var(--color-blanco);
     --bs-btn-bg: var(--color-primario-oscuro);
@@ -172,7 +213,15 @@ a:focus-visible,
     --bs-btn-focus-shadow-rgb: 67, 171, 146;
 }
 
-/* ---------- Alertas (DESIGN.md 4.3) ---------- */
+.pagination {
+    --bs-pagination-color: var(--color-primario-oscuro);
+    --bs-pagination-hover-color: var(--color-primario-hover);
+    --bs-pagination-focus-color: var(--color-primario-hover);
+    --bs-pagination-active-bg: var(--color-primario-oscuro);
+    --bs-pagination-active-border-color: var(--color-primario-oscuro);
+    --bs-pagination-focus-box-shadow: none;
+}
+
 .alerta {
     padding: 12px 16px;
     border-radius: var(--radio);
@@ -191,26 +240,23 @@ a:focus-visible,
     color: var(--color-error);
 }
 
+.alerta--error a {
+    color: var(--color-error);
+    font-weight: 600;
+}
+
 .alerta--info {
     background: #e7f1f8;
     border-color: #1f5f8b;
     color: #1f5f8b;
 }
 
-/* 6.0:1 */
 .alerta--aviso {
     background: #fff4d6;
     border-color: #8a5a00;
     color: #8a5a00;
 }
 
-/* 5.4:1 - notas fijas como "este sector esta dado de baja" */
-.alerta--error a {
-    color: var(--color-error);
-    font-weight: 600;
-}
-
-/* Tarjeta de credenciales temporales (HU-04 / HU-05) */
 .credenciales {
     background: var(--color-primario-suave);
     border: 1px solid var(--color-primario);
@@ -225,7 +271,9 @@ a:focus-visible,
     border-radius: 4px;
 }
 
-/* ---------- Login y activacion ---------- */
+/* ==========================================================
+   5. LOGIN Y ACTIVACIÓN DE CUENTA
+   ========================================================== */
 .login {
     min-height: 75vh;
 }
@@ -234,7 +282,6 @@ a:focus-visible,
     max-width: 420px;
 }
 
-/* Mismo tratamiento que el logo de la barra: circulo blanco detras (el PNG es transparente) */
 .login__logo {
     width: 96px;
     height: 96px;
@@ -244,7 +291,6 @@ a:focus-visible,
     box-shadow: var(--sombra);
 }
 
-/* Campos de solo lectura: se distinguen de los editables */
 .dato-lectura {
     background: var(--color-fondo);
     border: 1px dashed var(--color-borde);
@@ -263,7 +309,6 @@ a:focus-visible,
     font-weight: 600;
 }
 
-/* Requisitos de contrasena que se tildan en vivo */
 .requisitos li {
     color: var(--color-texto-suave);
 }
@@ -276,24 +321,23 @@ a:focus-visible,
     content: "\f26a";
 }
 
-/* bi-check-circle-fill */
-
-/* Boton de mostrar/ocultar contrasena: al menos 44 px de ancho para el dedo */
 .btn-ojo {
     min-width: 44px;
 }
 
-/* ---------- Tarjetas del panel ---------- */
+/* ==========================================================
+   6. TARJETAS INDICADORAS DEL PANEL
+   ========================================================== */
 .tarjeta-indicador {
     border-left: 4px solid var(--color-primario);
     transition: box-shadow 0.15s ease;
 }
 
-.tarjeta-indicador:hover {
+.tarjeta-indicador:hover,
+.tarjeta-modulo:hover {
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1) !important;
 }
 
-/* Icono de cada indicador del panel: circulo con el color del estado (mismos colores que los badges) */
 .indicador__icono {
     display: inline-flex;
     align-items: center;
@@ -314,7 +358,6 @@ a:focus-visible,
     color: var(--color-ok);
 }
 
-/* 4.6:1 */
 .indicador--pendiente {
     border-left-color: #d9a000;
 }
@@ -324,7 +367,6 @@ a:focus-visible,
     color: #8a5a00;
 }
 
-/* 5.4:1 */
 .indicador--baja {
     border-left-color: #9aa5ad;
 }
@@ -334,63 +376,15 @@ a:focus-visible,
     color: var(--color-texto-suave);
 }
 
-/* 4.8:1 */
 .tarjeta-indicador .numero {
     font-size: 2rem;
     font-weight: 700;
     line-height: 1;
 }
 
-/* Tamano tactil minimo en celular (skill ux-ui-expert 6.7) */
-@media (max-width: 576px) {
-    .btn {
-        min-height: 44px;
-    }
-
-    .btn-sm {
-        min-height: 36px;
-    }
-}
-
-/* ---------- Paginacion con la paleta (Bootstrap la trae en azul) ---------- */
-.pagination {
-    --bs-pagination-color: var(--color-primario-oscuro);
-    --bs-pagination-hover-color: var(--color-primario-hover);
-    --bs-pagination-focus-color: var(--color-primario-hover);
-    --bs-pagination-active-bg: var(--color-primario-oscuro);
-    --bs-pagination-active-border-color: var(--color-primario-oscuro);
-    --bs-pagination-focus-box-shadow: none;
-}
-
-/* ---------- Celular: botones de accion de formularios a lo ancho ---------- */
-@media (max-width: 575.98px) {
-    .flex-column.flex-sm-row>.btn {
-        width: 100%;
-    }
-}
-
 /* ==========================================================
-   Menu lateral (DESIGN.md 4.6)
-   - lg en adelante (>= 992 px): fijo a la izquierda, se puede achicar a solo iconos.
-   - Menos de 992 px: offcanvas de Bootstrap, se abre con las tres rayitas.
+   7. MENÚ LATERAL (FIJO Y COMPACTO)
    ========================================================== */
-:root {
-    --alto-barra: 60px;
-    --ancho-menu: 240px;
-    --ancho-menu-compacto: 76px;
-}
-
-.barra {
-    min-height: var(--alto-barra);
-}
-
-.min-w-0 {
-    min-width: 0;
-}
-
-/* evita que tablas anchas empujen el layout dentro del flex */
-
-/* Bootstrap fuerza fondo transparente en offcanvas-lg desde 992 px: se vuelve a blanco */
 .menu-lateral {
     background-color: var(--color-blanco) !important;
 }
@@ -401,7 +395,6 @@ a:focus-visible,
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--color-texto-suave);
-    /* 5.5:1 sobre blanco */
     margin: 0.5rem 0.75rem 0.25rem;
 }
 
@@ -428,12 +421,10 @@ a:focus-visible,
 .menu-lateral .nav-link.active {
     background: var(--color-primario-suave);
     color: var(--color-primario-hover);
-    /* 5.9:1 */
     font-weight: 600;
     box-shadow: inset 3px 0 0 var(--color-primario);
 }
 
-/* Cuerpo del menu: secciones arriba, "Mi cuenta" + "Cerrar sesion" abajo */
 .menu-lateral .menu-lateral__cuerpo {
     display: flex;
     flex-direction: column;
@@ -442,7 +433,6 @@ a:focus-visible,
 
 .menu-lateral__pie {
     margin-top: auto;
-    /* empuja el bloque al fondo del menu */
     padding-top: 0.75rem;
     border-top: 1px solid var(--color-borde);
 }
@@ -455,7 +445,6 @@ a:focus-visible,
     min-height: 44px;
 }
 
-/* Boton de achicar: redondo, clavado sobre la linea derecha del menu, a mitad de altura */
 .menu-lateral__achicar {
     position: absolute;
     top: 50%;
@@ -498,18 +487,15 @@ a:focus-visible,
         top: var(--alto-barra);
         height: calc(100vh - var(--alto-barra));
         overflow: visible;
-        /* deja asomar el boton de achicar sobre la linea */
         transition: width 0.2s ease;
     }
 
     .menu-lateral .menu-lateral__cuerpo {
         height: 100%;
         overflow-y: auto;
-        /* el scroll va adentro, no en el aside */
         overflow-x: hidden;
     }
 
-    /* Menu compacto: solo iconos. El texto queda para lectores de pantalla y el title muestra el nombre. */
     .menu-compacto .menu-lateral {
         width: var(--ancho-menu-compacto);
     }
@@ -542,7 +528,6 @@ a:focus-visible,
     }
 }
 
-/* En celular el offcanvas ocupa la pantalla de alto: el pie queda abajo igual */
 @media (max-width: 991.98px) {
     .menu-lateral .menu-lateral__cuerpo {
         flex-grow: 1;
@@ -557,8 +542,9 @@ a:focus-visible,
     }
 }
 
-/* ---------- Tipos de turno (HU-11 / HU-12) ---------- */
-/* Etiqueta del turno: estética suave Sage & Pine con acento lateral del color configurado */
+/* ==========================================================
+   8. TIPOS DE TURNO (ETIQUETAS Y SELECTORES)
+   ========================================================== */
 .etiqueta-turno {
     display: inline-flex;
     align-items: center;
@@ -573,7 +559,6 @@ a:focus-visible,
     border-left: 4px solid var(--color-turno, var(--color-primario-oscuro));
 }
 
-/* Selector de color: cada opcion es un boton con el color y su nombre (no solo color) */
 .opcion-color {
     background: var(--color-turno);
     color: var(--color-turno-texto);
@@ -587,7 +572,6 @@ a:focus-visible,
     border-color: var(--color-texto);
 }
 
-/* sin oscurecer: el ambar quedaria al limite de contraste */
 .btn-check:checked+.opcion-color {
     background: var(--color-turno);
     color: var(--color-turno-texto);
@@ -606,7 +590,6 @@ a:focus-visible,
     outline-offset: 4px;
 }
 
-/* Duracion calculada en vivo */
 .duracion-calculada {
     display: inline-block;
     padding: 0.5rem 0.75rem;
@@ -621,12 +604,13 @@ a:focus-visible,
     color: var(--color-error);
 }
 
-/* Descripciones en formularios: alto comodo dentro de form-floating */
 .form-floating>textarea.form-control {
     height: 6rem;
 }
 
-/* ---------- Planificador semanal (HU-14) ---------- */
+/* ==========================================================
+   9. PLANIFICADOR SEMANAL Y MENSUAL (CUADRÍCULA)
+   ========================================================== */
 .cuadricula {
     table-layout: fixed;
     width: 100%;
@@ -640,26 +624,24 @@ a:focus-visible,
     white-space: normal;
 }
 
-.celda-turno__nombres li {
-    line-height: 1.3;
-    margin-bottom: 0.15rem;
-}
-
 .cuadricula td,
 .cuadricula th {
     padding: 0.5rem;
 }
 
+.celda-turno__nombres li {
+    line-height: 1.3;
+    margin-bottom: 0.15rem;
+}
+
 .cuadricula__hoy {
-    background: var(--color-primario-suave) !important;
+    background: #d7ebe3 !important;
 }
 
-/* Dias pasados: fondo gris y la palabra "pasado" / candado. Nunca opacidad: bajaria el contraste por debajo de AA. */
 .cuadricula__pasado {
-    background: var(--color-fondo) !important;
+    background: #e4e9e6 !important;
 }
 
-/* Links sobre el fondo de hoy: #307f6d daria 4.2:1; el tono mas oscuro da 5.9:1 */
 .cuadricula__hoy a:not(.btn),
 .dia-planificador--hoy a:not(.btn) {
     color: var(--color-primario-hover);
@@ -667,7 +649,7 @@ a:focus-visible,
 
 .dia-planificador--pasado>summary {
     cursor: pointer;
-    background: var(--color-fondo);
+    background: #e4e9e6;
     border-radius: var(--radio);
 }
 
@@ -676,22 +658,15 @@ a:focus-visible,
     border-radius: var(--radio) var(--radio) 0 0;
 }
 
-@media (min-width: 992px) {
-    .w-lg-auto {
-        width: auto !important;
-    }
-}
-
 .dia-planificador--hoy {
-    border-color: var(--color-primario) !important;
+    border-color: var(--color-primario-oscuro) !important;
     border-width: 2px !important;
 }
 
 .dia-planificador--hoy>h2 {
-    background: var(--color-primario-suave);
+    background: #d7ebe3;
 }
 
-/* Estado de cobertura de cada celda: icono + texto, nunca solo color (contrastes medidos: 4.6, 5.4 y 4.9) */
 .cobertura {
     display: inline-flex;
     align-items: center;
@@ -718,11 +693,6 @@ a:focus-visible,
     color: var(--color-error);
 }
 
-.tarjeta-modulo:hover {
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Resumen de horas de la semana por enfermero/a (HU-14): barra + texto, nunca solo color */
 .carga-semana .progress {
     height: 0.5rem;
 }
@@ -743,7 +713,6 @@ a:focus-visible,
     background: var(--color-error-fondo);
 }
 
-/* Boton para quitar a alguien de un turno dentro de la celda */
 .celda-turno__quitar {
     line-height: 1;
     vertical-align: baseline;
@@ -753,7 +722,9 @@ a:focus-visible,
     color: #8e1c1c !important;
 }
 
-/* ---------- Mi cronograma (HU-17) ---------- */
+/* ==========================================================
+   10. MI CRONOGRAMA (VISTA ENFERMERO/A)
+   ========================================================== */
 .proximo-turno {
     background: var(--color-primario-suave);
     border: 1px solid var(--color-primario);
@@ -761,7 +732,6 @@ a:focus-visible,
     border-radius: var(--radio);
 }
 
-/* Estado del turno: icono + texto (contrastes 6.0, 4.6 y 4.8) */
 .estado-turno {
     display: inline-flex;
     align-items: center;
@@ -788,7 +758,6 @@ a:focus-visible,
     color: var(--color-texto-suave);
 }
 
-/* Marca "Hoy": blanco sobre verde oscuro (4.8:1), igual en tabla y agenda */
 .badge-hoy {
     display: inline-block;
     padding: 0.1rem 0.45rem;
@@ -811,15 +780,39 @@ a:focus-visible,
 }
 
 .dia-cronograma--hoy {
-    border-color: var(--color-primario) !important;
+    border-color: var(--color-primario-oscuro) !important;
     border-width: 2px !important;
 }
 
 .dia-cronograma--hoy>h2 {
-    background: var(--color-primario-suave);
+    background: #d7ebe3;
 }
 
-/* ---------- Calendario Mensual Sage & Pine (Panel Inicio) ---------- */
+/* Día de HOY unificado Sage & Pine en Mi Cronograma del Enfermero */
+.table-primary,
+td.bg-primary-subtle,
+td[class*="border-primary"] {
+    background-color: var(--color-blanco) !important;
+    border-color: var(--color-primario-oscuro) !important;
+    box-shadow: inset 0 0 0 2px var(--color-primario-oscuro) !important;
+    --bs-table-bg: var(--color-blanco);
+    --bs-table-accent-bg: var(--color-blanco);
+    --bs-border-color: var(--color-primario-oscuro);
+}
+
+td .badge.bg-primary {
+    background-color: var(--color-primario-oscuro) !important;
+    color: var(--color-blanco) !important;
+}
+
+td .text-primary {
+    color: var(--color-primario-oscuro) !important;
+    font-weight: 600;
+}
+
+/* ==========================================================
+   11. CALENDARIO MENSUAL SAGE & PINE (PANEL, PLANIFICADOR Y MODAL)
+   ========================================================== */
 .tp-panel-card {
     background: var(--color-blanco);
     border: 1px solid var(--color-borde-suave);
@@ -830,7 +823,7 @@ a:focus-visible,
 .tp-calendario {
     table-layout: fixed;
     width: 100%;
-    border-color: var(--color-borde-suave);
+    border-color: var(--color-borde);
 }
 
 .tp-calendario thead th {
@@ -839,16 +832,17 @@ a:focus-visible,
     font-weight: 600;
     font-size: 0.82rem;
     padding: 0.65rem 0.5rem;
-    border-color: var(--color-borde-suave);
+    border: 1px solid var(--color-borde) !important;
 }
 
 .tp-calendario td {
     padding: 0.55rem;
     vertical-align: top;
-    border-color: var(--color-borde-suave);
+    border: 1px solid #c5d1cb !important;
     transition: background-color 120ms ease-out;
 }
 
+/* Celda normal */
 .tp-celda-dia {
     cursor: pointer;
     background: var(--color-blanco);
@@ -863,16 +857,73 @@ a:focus-visible,
     outline-offset: -2px;
 }
 
+/* Celda fuera del mes actual */
 .tp-celda-dia--fuera {
     background: #f4f7f5;
     color: var(--color-texto-suave);
 }
 
-.tp-celda-dia--hoy {
-    background: #f2f8f5 !important;
-    box-shadow: inset 0 0 0 2px var(--color-primario-oscuro);
+/* Celdas de días ya pasados (apagadas tanto en Panel como en Planificador) */
+.tp-celda-dia--pasado,
+.tp-calendario td.bg-light-subtle {
+    background: #e4e9e6 !important;
+    color: var(--color-texto-suave);
 }
 
+.tp-celda-dia--pasado .tp-num-dia,
+.tp-calendario td.bg-light-subtle .tp-num-dia {
+    color: var(--color-texto-suave);
+}
+
+.tp-celda-dia--pasado .tp-turno-pill,
+.tp-calendario td.bg-light-subtle .tp-turno-pill {
+    background: #d9e0dc;
+    border-color: #c8d2cc;
+}
+
+.tp-calendario td.bg-light-subtle .border.rounded,
+.tp-calendario td.bg-light-subtle .card {
+    background-color: #edf1ef !important;
+    border-color: #cfd8d3 !important;
+}
+
+/* Celda del día de HOY unificada Sage & Pine (fondo blanco como días futuros + marco verde pino) */
+.tp-celda-dia--hoy {
+    background: var(--color-blanco) !important;
+    box-shadow: inset 0 0 0 2px var(--color-primario-oscuro) !important;
+    color: var(--color-texto) !important;
+}
+
+.tp-celda-dia--hoy:hover {
+    background: #f1f5f3 !important;
+}
+
+.tp-celda-dia--hoy .tp-num-dia {
+    background: var(--color-primario-oscuro) !important;
+    color: var(--color-blanco) !important;
+    font-weight: 700;
+}
+
+.tp-celda-dia--hoy .badge[style*="background"] {
+    background: transparent !important;
+    color: var(--color-primario-oscuro) !important;
+    font-weight: 700;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+}
+
+.tp-celda-dia--hoy .tp-turno-pill,
+.tp-celda-dia--hoy .border.rounded-3,
+.tp-celda-dia--hoy .border.rounded,
+.tp-celda-dia--hoy .card {
+    background-color: #f1f5f3 !important;
+    border-top-color: var(--color-borde-suave) !important;
+    border-right-color: var(--color-borde-suave) !important;
+    border-bottom-color: var(--color-borde-suave) !important;
+    color: var(--color-texto) !important;
+}
+
+/* Número del día */
 .tp-num-dia {
     display: inline-flex;
     align-items: center;
@@ -892,12 +943,7 @@ a:focus-visible,
     color: var(--color-primario-oscuro);
 }
 
-.tp-celda-dia--hoy .tp-num-dia {
-    background: var(--color-primario-oscuro);
-    color: var(--color-blanco);
-}
-
-/* Pastilla compacta de cada turno dentro del día */
+/* Pastilla compacta de cada turno */
 .tp-turno-pill {
     display: flex;
     align-items: center;
@@ -943,7 +989,7 @@ a:focus-visible,
     border: 1px solid rgba(164, 38, 38, 0.2);
 }
 
-/* Tarjeta de enfermero dentro del modal de detalle */
+/* Tarjeta de enfermero dentro del modal */
 .tp-enfermero-card {
     background: var(--color-blanco);
     border: 1px solid var(--color-borde-suave);
@@ -958,17 +1004,6 @@ a:focus-visible,
     color: var(--color-texto-suave);
 }
 
-/* ---------- Unificación estética Sage & Pine en Planificador Mensual ---------- */
-.tp-calendario td .badge[style*="background"],
-.tp-calendario td span[style*="background"] {
-    background-color: #f1f5f3 !important;
-    color: var(--color-texto) !important;
-    border: 1px solid var(--color-borde) !important;
-    border-left: 4px solid var(--color-primario-oscuro) !important;
-    font-weight: 600 !important;
-    padding: 0.25rem 0.55rem !important;
-}
-
 /* Quita la segunda barra de scroll interna en la tabla del planificador */
 .card-body .table-responsive {
     overflow-x: visible;
@@ -978,4 +1013,90 @@ a:focus-visible,
     width: 100% !important;
     min-width: 0 !important;
     table-layout: fixed;
+}
+
+/* ==========================================================
+   12. FILAS ESBELTAS Y DRAWER LATERAL
+   ========================================================== */
+.tp-shift-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    padding: 0.32rem 0.5rem;
+    border-radius: 6px;
+    background: #f8faf9;
+    border: 1px solid var(--color-borde-suave);
+    border-left: 3.5px solid var(--color-turno, var(--color-primario-oscuro));
+    transition: border-left-width 120ms ease-out, background-color 120ms ease-out;
+}
+
+.tp-shift-row:hover {
+    background: #f1f5f3;
+    border-left-width: 5px;
+}
+
+.tp-celda-dia--pasado .tp-shift-row {
+    background: rgba(255, 255, 255, 0.72);
+    border-color: #cfd8d3;
+}
+
+.tp-celda-dia--hoy .tp-shift-row {
+    background: #ffffff;
+    border-color: rgba(27, 77, 62, 0.22);
+}
+
+.tp-shift-row__nombre {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-texto);
+    line-height: 1.2;
+}
+
+.tp-shift-row__btn-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #e7ede9;
+    color: var(--color-texto-suave);
+    text-decoration: none;
+    font-size: 0.75rem;
+    transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+
+.tp-shift-row__btn-add:hover {
+    background: var(--color-primario-oscuro);
+    color: var(--color-blanco);
+}
+
+/* Avatares apilados con iniciales */
+.tp-avatar-stack {
+    display: inline-flex;
+    align-items: center;
+}
+
+.tp-avatar-stack__item {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--color-blanco);
+    background: var(--color-primario);
+    border: 1.5px solid var(--color-blanco);
+    margin-left: -4px;
+}
+
+.tp-avatar-stack__item:first-child {
+    margin-left: 0;
+}
+
+.tp-avatar-stack__item--extra {
+    background: #6d5016;
 }
