@@ -100,12 +100,15 @@ CREATE TABLE sectores (
     KEY idx_sectores_estado (estado)
 ) ENGINE=InnoDB;
 
-INSERT INTO sectores (nombre, descripcion, es_critico, dotacion_minima) VALUES
-    ('UTI',                 'Unidad de Terapia Intensiva de adultos.',            1, 3),
-    ('Guardia',             'Guardia general y emergencias.',                     1, 2),
-    ('Neonatología',        'Cuidados neonatales e incubadoras.',                 1, 2),
-    ('Internación general', 'Sala de internación clínica y quirúrgica.',          0, 2);
-
+INSERT INTO sectores (id, nombre, descripcion, es_critico, dotacion_minima) VALUES
+    (1, 'Internación general', 'Sala común de clínica médica y quirúrgica (Enfermería General).', 0, 3),
+    (2, 'Guardia',             'Guardia general y emergencias 24 hs.',                            1, 3),
+    (3, 'UTI',                 'Unidad de Terapia Intensiva de adultos.',                         1, 3),
+    (4, 'Neonatología',        'Cuidados intensivos e intermedios neonatales.',                   1, 2),
+    (5, 'Quirófano',           'Centro quirúrgico y recuperación postanestésica.',                1, 2),
+    (6, 'Salud Mental',        'Internación y guardia interdisciplinaria de salud mental.',       0, 2),
+    (7, 'Oncología',           'Hospital de día y cuidados oncológicos.',                         0, 2);
+    
 -- ------------------------------------------------------------
 --  TABLA: tipos_turno   (HU-11 y HU-12)
 --  Franjas horarias rotativas. La duracion la calcula el sistema
@@ -120,8 +123,8 @@ CREATE TABLE tipos_turno (
     nombre              VARCHAR(60)       NOT NULL,
     hora_inicio         TIME              NOT NULL,
     hora_fin            TIME              NOT NULL,
-    duracion_minutos    SMALLINT UNSIGNED NOT NULL,          -- calculada al guardar
-    color               CHAR(7)           NOT NULL DEFAULT '#307f6d',  -- etiqueta para la cuadricula
+    duracion_minutos    SMALLINT UNSIGNED NOT NULL,
+    color               CHAR(7)           NOT NULL DEFAULT '#307f6d',
     estado              ENUM('ACTIVO', 'BAJA') NOT NULL DEFAULT 'ACTIVO',
     created_at          DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME          NULL DEFAULT NULL,
@@ -133,12 +136,35 @@ CREATE TABLE tipos_turno (
     CONSTRAINT fk_tipos_turno_sector FOREIGN KEY (sector_id) REFERENCES sectores (id)
 ) ENGINE=InnoDB;
 
-INSERT INTO tipos_turno (nombre, hora_inicio, hora_fin, duracion_minutos, color) VALUES
-    ('Mañana',           '06:00:00', '14:00:00', 480, '#c98a00'),
-    ('Tarde',            '14:00:00', '22:00:00', 480, '#b34700'),
-    ('Noche',            '22:00:00', '06:00:00', 480, '#3d5a99'),
-    ('Guardia especial', '08:00:00', '20:00:00', 720, '#7b4ea3');
-
+INSERT INTO tipos_turno (sector_id, nombre, hora_inicio, hora_fin, duracion_minutos, color) VALUES
+    -- 1. Internación general (8h)
+    (1, 'Mañana',     '06:00:00', '14:00:00', 480, '#c98a00'),
+    (1, 'Tarde',      '14:00:00', '22:00:00', 480, '#b34700'),
+    (1, 'Noche',      '22:00:00', '06:00:00', 480, '#3d5a99'),
+    -- 2. Guardia (8h)
+    (2, 'Mañana',     '06:00:00', '14:00:00', 480, '#c98a00'),
+    (2, 'Tarde',      '14:00:00', '22:00:00', 480, '#b34700'),
+    (2, 'Noche',      '22:00:00', '06:00:00', 480, '#3d5a99'),
+    -- 3. UTI (6h)
+    (3, 'Vespertino', '00:00:00', '06:00:00', 360, '#7b4ea3'),
+    (3, 'Mañana',     '06:00:00', '12:00:00', 360, '#307f6d'),
+    (3, 'Tarde',      '12:00:00', '18:00:00', 360, '#c98a00'),
+    (3, 'Noche',      '18:00:00', '00:00:00', 360, '#3d5a99'),
+    -- 4. Neonatología (8h)
+    (4, 'Mañana',     '06:00:00', '14:00:00', 480, '#c98a00'),
+    (4, 'Tarde',      '14:00:00', '22:00:00', 480, '#b34700'),
+    (4, 'Noche',      '22:00:00', '06:00:00', 480, '#3d5a99'),
+    -- 5. Quirófano (8h)
+    (5, 'Mañana',     '06:00:00', '14:00:00', 480, '#307f6d'),
+    (5, 'Tarde',      '14:00:00', '22:00:00', 480, '#b34700'),
+    (5, 'Guardia',    '22:00:00', '06:00:00', 480, '#3d5a99'),
+    -- 6. Salud Mental (8h)
+    (6, 'Mañana',     '06:00:00', '14:00:00', 480, '#c98a00'),
+    (6, 'Tarde',      '14:00:00', '22:00:00', 480, '#b34700'),
+    (6, 'Noche',      '22:00:00', '06:00:00', 480, '#3d5a99'),
+    -- 7. Oncología (8h)
+    (7, 'Mañana',     '06:00:00', '14:00:00', 480, '#307f6d'),
+    (7, 'Tarde',      '14:00:00', '22:00:00', 480, '#7b4ea3');
 
 -- ------------------------------------------------------------
 --  TABLA: asignaciones   (HU-13 y HU-14)
