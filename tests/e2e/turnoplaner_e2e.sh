@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# TurnoPlaner - pruebas de punta a punta (HU-01 a HU-08) con curl
+# TurnoPlaner - pruebas de punta a punta (HU-01 a HU-14 y HU-17) con curl
 #
 # Recorre los criterios de aceptacion como un usuario real: sesion, CSRF,
 # redirecciones, mensajes en pantalla y datos en la base.
@@ -47,7 +47,7 @@ follow a login; check "Mensaje generico de credenciales" 'has "Usuario o contras
 r=$(login a admin@turnoplaner.local admin123); check "Admin con email entra al panel" '[[ $r == *"/inicio" ]]'
 get a inicio >/dev/null; check "Panel con saludo y menu admin" 'has "Hola, Admin" && has "admin/usuarios"'
 r=$(login e 30123456 enfermero123); check "Enfermera con DNI va a Mi cronograma" '[[ $r == *"/mi-cronograma" ]]'
-get e mi-cronograma >/dev/null; check "Cronograma sin turnos: estado vacio de la semana y resumen sin turnos" 'has "No tiene turnos asignados en esta semana" && has "No tiene turnos programados por ahora" && ! has "0 turnos"'
+get e mi-cronograma >/dev/null; check "Cronograma sin turnos: abre en el mes, con estado vacio y resumen sin turnos" 'has "No tiene turnos asignados en " && has "No tiene turnos programados por ahora" && ! has "0 turnos"'
 check "Menu de enfermera sin Personal" '! has "admin/usuarios"'
 r=$(get e admin/usuarios); check "Enfermera en URL de admin es rechazada" '[[ $r == *"/mi-cronograma" ]]'
 follow e mi-cronograma; check "Alerta de permisos insuficientes" 'has "Acceso denegado"'
@@ -201,24 +201,26 @@ post a admin/sectores/$PED/editar "$D/s.html" -d "nombre=Pediatr%C3%ADa&descripc
 check "BD: edicion aplicada" '[[ $(sql "SELECT CONCAT(dotacion_minima,es_critico,IFNULL(descripcion,\"null\")) FROM turnoplaner.sectores WHERE id=$PED") == "41null" ]]'
 
 echo "== HU-11 / HU-12 Tipos de turno"
-get a admin/tipos-turno >/dev/null; check "Listado con Noche 22:00 a 06:00 (+1 dia) de 8 h" 'texto | grep -q "22:00 →a 06:00 (+1 día), termina al día siguiente" && has "8 h" && has "12 h"'
+get a admin/tipos-turno >/dev/null; check "Listado con Noche 22:00 a 06:00 (+1 dia) de 8 h, el sector de cada turno y los de 6 h de UTI" 'texto | grep -q "22:00 →a 06:00 (+1 día), termina al día siguiente" && has "8 h" && has "Internación general"'
+get a "admin/tipos-turno?sector_id=3" >/dev/null; check "Filtro por sector: UTI con sus turnos de 6 h" 'has "6 h" && ! has "Internación general</td>"'
+check "El alta de tipo de turno pide el sector (cada turno pertenece a un sector)" '[[ $(get a admin/tipos-turno/crear) == 200* ]] && has "name=\"sector_id\""'
 get a admin/tipos-turno/crear >/dev/null; cp "$D/out.html" "$D/t.html"
-post a admin/tipos-turno/crear "$D/t.html" -d "nombre=Partido&hora_inicio=10:00&hora_fin=10:00&color=%23307f6d" >/dev/null; follow a admin/tipos-turno/crear
+post a admin/tipos-turno/crear "$D/t.html" -d "sector_id=1&nombre=Partido&hora_inicio=10:00&hora_fin=10:00&color=%23307f6d" >/dev/null; follow a admin/tipos-turno/crear
 check "Inicio igual a fin rechazado" 'has "no puede ser igual a la de inicio"'
 cp "$D/out.html" "$D/t.html"
-post a admin/tipos-turno/crear "$D/t.html" -d "nombre=Partido&hora_inicio=25:00&hora_fin=10:00&color=%23307f6d" >/dev/null; follow a admin/tipos-turno/crear
+post a admin/tipos-turno/crear "$D/t.html" -d "sector_id=1&nombre=Partido&hora_inicio=25:00&hora_fin=10:00&color=%23307f6d" >/dev/null; follow a admin/tipos-turno/crear
 check "Hora invalida rechazada" 'has "formato 24 h"'
 cp "$D/out.html" "$D/t.html"
-post a admin/tipos-turno/crear "$D/t.html" -d "nombre=noche&hora_inicio=21:00&hora_fin=05:00&color=%23307f6d" >/dev/null; follow a admin/tipos-turno/crear
-check "Nombre repetido rechazado" 'has "Ya existe un tipo de turno con ese nombre"'
+post a admin/tipos-turno/crear "$D/t.html" -d "sector_id=1&nombre=noche&hora_inicio=21:00&hora_fin=05:00&color=%23307f6d" >/dev/null; follow a admin/tipos-turno/crear
+check "Nombre repetido en el mismo sector rechazado" 'has "Ya existe un tipo de turno con ese nombre en ese sector"'
 cp "$D/out.html" "$D/t.html"
-r=$(post a admin/tipos-turno/crear "$D/t.html" -d "nombre=Trasnoche&hora_inicio=23:30&hora_fin=07:00&color=%231f6f8b")
+r=$(post a admin/tipos-turno/crear "$D/t.html" -d "sector_id=1&nombre=Trasnoche&hora_inicio=23:30&hora_fin=07:00&color=%231f6f8b")
 check "Alta de turno que cruza la medianoche" '[[ $r == *"/admin/tipos-turno" ]]'
 check "BD: duracion calculada 7 h 30 min (450 min)" '[[ $(sql "SELECT duracion_minutos FROM turnoplaner.tipos_turno WHERE nombre=\"Trasnoche\"") == "450" ]]'
 follow a admin/tipos-turno; check "Se muestra 23:30 a 07:00 (+1 dia) y 7 h 30 min" 'texto | grep -q "23:30 →a 07:00" && has "7 h 30 min"'
 TRAS=$(sql "SELECT id FROM turnoplaner.tipos_turno WHERE nombre='Trasnoche'")
 get a admin/tipos-turno/$TRAS/editar >/dev/null; cp "$D/out.html" "$D/t.html"
-post a admin/tipos-turno/$TRAS/editar "$D/t.html" -d "nombre=Trasnoche&hora_inicio=23:00&hora_fin=07:00&color=%231f6f8b" >/dev/null
+post a admin/tipos-turno/$TRAS/editar "$D/t.html" -d "sector_id=1&nombre=Trasnoche&hora_inicio=23:00&hora_fin=07:00&color=%231f6f8b" >/dev/null
 check "Edicion recalcula la duracion (8 h)" '[[ $(sql "SELECT duracion_minutos FROM turnoplaner.tipos_turno WHERE id=$TRAS") == "480" ]]'
 get a admin/tipos-turno >/dev/null; cp "$D/out.html" "$D/t.html"
 post a admin/tipos-turno/$TRAS/baja "$D/t.html" >/dev/null; follow a admin/tipos-turno
@@ -231,27 +233,33 @@ echo "== HU-13 Asignacion de turnos"
 LUN=$(date -d "next monday" +%F); MAR=$(date -d "$LUN +1 day" +%F); MIE=$(date -d "$LUN +2 day" +%F); JUE=$(date -d "$LUN +3 day" +%F); AYER=$(date -d "yesterday" +%F)
 MARIA=$(sql "SELECT id FROM turnoplaner.usuarios WHERE dni=30123456"); JUAN=$(sql "SELECT id FROM turnoplaner.usuarios WHERE dni=31234567")
 asignar(){ get a "admin/asignaciones/crear" >/dev/null; cp "$D/out.html" "$D/as.html"; post a admin/asignaciones/crear "$D/as.html" -d "usuario_id=$1&sector_id=$2&tipo_turno_id=$3&fecha=$4"; }
-r=$(asignar $MARIA 1 1 $LUN); check "Asigna Maria UTI Mañana el lunes y vuelve al planificador" '[[ $r == *"/admin/planificador?sector=1&semana=$LUN" ]]'
+r=$(asignar $MARIA 1 1 $LUN); check "Asigna Maria Internacion Mañana el lunes y vuelve al planificador en ese mes" '[[ $r == *"/admin/planificador?sector=1&mes=${LUN:0:7}" ]]'
 check "BD: inicio y fin calculados" '[[ $(sql "SELECT CONCAT(inicio,\"|\",fin) FROM turnoplaner.asignaciones WHERE usuario_id=$MARIA AND fecha=\"$LUN\"") == "$LUN 06:00:00|$LUN 14:00:00" ]]'
 r=$(asignar $MARIA 1 3 $LUN); check "Noche del lunes (22 a 06) no choca con la mañana" '[[ $r == *"/admin/planificador"* ]]'
 check "BD: la noche termina el martes a las 06:00" '[[ $(sql "SELECT fin FROM turnoplaner.asignaciones WHERE usuario_id=$MARIA AND tipo_turno_id=3") == "$MAR 06:00:00" ]]'
 r=$(asignar $MARIA 1 1 $MAR); check "Mañana del martes (06:00) tras la noche (hasta 06:00) no es superposicion" '[[ $r == *"/admin/planificador"* ]]'
 asignar $MARIA 2 4 $LUN >/dev/null; follow a admin/asignaciones/crear
-check "Guardia especial del lunes (08 a 20) se superpone y se rechaza diciendo con que turno" 'has "ya tiene un turno de Mañana en UTI que se superpone"'
+check "Mañana de Guardia el mismo lunes se superpone y se rechaza diciendo con que turno" 'has "ya tiene un turno de Mañana en Internación general que se superpone"'
 check "Conserva lo elegido tras el error" 'has "value=\"$LUN\""'
+asignar $MARIA 1 4 $MIE >/dev/null; follow a admin/asignaciones/crear
+check "Un turno de otro sector no se puede usar" 'has "no corresponde al sector"'
 r=$(asignar $MARIA 1 2 $MIE); check "Tarde del miercoles: 32 h de 36" '[[ $r == *"/admin/planificador"* ]]'
-asignar $MARIA 1 2 $JUE >/dev/null; follow a admin/asignaciones/crear
-check "Tarde del jueves superaria 36 h y se rechaza explicando la cuenta" 'has "Supera la carga horaria" && has "ya tiene 32 h asignadas" && has "llegaría a 40 h"'
+r=$(asignar $MARIA 1 2 $JUE); follow a "${r#*$B/}"
+check "Tarde del jueves supera 36 h: se registra como hora extra y lo avisa" 'has "HORA EXTRA" && [[ $(sql "SELECT CONCAT(es_extra,\"|\",minutos_extra) FROM turnoplaner.asignaciones WHERE usuario_id=$MARIA AND fecha=\"$JUE\" AND deleted_at IS NULL") == "1|240" ]]'
+check "Los turnos anteriores de la semana no son extra" '[[ $(sql "SELECT SUM(es_extra) FROM turnoplaner.asignaciones WHERE usuario_id=$MARIA AND fecha<\"$JUE\" AND deleted_at IS NULL") == "0" ]]'
 asignar $MARIA 1 1 $AYER >/dev/null; follow a admin/asignaciones/crear
 check "Fecha pasada rechazada" 'has "Solo se pueden asignar turnos de hoy en adelante"'
 get a admin/sectores >/dev/null; cp "$D/out.html" "$D/s.html"; post a admin/sectores/$PED/baja "$D/s.html" >/dev/null
 asignar $JUAN $PED 1 $LUN >/dev/null; follow a admin/asignaciones/crear
 check "Sector dado de baja no se puede asignar" 'has "El sector elegido no está activo"'
-get a admin/asignaciones/crear >/dev/null; check "El sector de baja no aparece en la lista" '! has "Pediatría"'
+get a admin/asignaciones/crear >/dev/null; check "El sector de baja no aparece en la lista" '! has ">Pediatría<"'
 
-echo "== HU-14 Cuadricula semanal"
-get a "admin/planificador?sector=1&semana=$LUN" >/dev/null; cp "$D/out.html" "$D/pl.html"
-check "Muestra la semana del lunes al domingo" 'grep -q "Semana del $(date -d $LUN +%d/%m/%Y) al $(date -d "$LUN +6 day" +%d/%m/%Y)" "$D/pl.html"'
+echo "== HU-14 Calendario mensual del planificador"
+MESES=(enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre)
+MES_LUN="${MESES[$((10#$(date -d $LUN +%m) - 1))]} $(date -d $LUN +%Y)"
+r=$(get a "admin/planificador?sector=1&semana=$LUN"); check "Un link viejo con ?semana= abre ese mes" '[[ $r == 200* ]] && grep -qi "$MES_LUN" "$D/out.html"'
+get a "admin/planificador?sector=1&mes=${LUN:0:7}" >/dev/null; cp "$D/out.html" "$D/pl.html"
+check "Muestra el mes del turno con los dias de lunes a domingo" 'grep -qi "$MES_LUN" "$D/pl.html" && grep -q ">Lunes<" "$D/pl.html" && grep -q ">Domingo<" "$D/pl.html"'
 check "Muestra a Maria en la cuadricula" 'grep -q "Gomez, Maria" "$D/pl.html"'
 check "Estado de cobertura contra la dotacion minima de UTI (3)" 'grep -q "Faltan 2 · 1/3" "$D/pl.html" && grep -q "Sin cubrir 0/3" "$D/pl.html"'
 check "Boton Asignar precarga sector, turno y fecha" 'grep -q "admin/asignaciones/crear?sector=1&amp;tipo=1&amp;fecha=$LUN" "$D/pl.html"'
@@ -268,11 +276,11 @@ get a admin/asignaciones/$AMIE/editar >/dev/null; cp "$D/out.html" "$D/ed.html"
 check "Formulario de reasignar precargado" 'grep -q "value=\"$MIE\"" "$D/ed.html" && grep -q "Eliminar turno" "$D/ed.html"'
 post a admin/asignaciones/$AMIE/editar "$D/ed.html" -d "usuario_id=$JUAN&sector_id=1&tipo_turno_id=2&fecha=$MIE" >/dev/null
 check "Reasignado a Juan" '[[ $(sql "SELECT usuario_id FROM turnoplaner.asignaciones WHERE id=$AMIE") == "$JUAN" ]]'
-r=$(asignar $MARIA 1 2 $JUE); check "Al liberar horas, Maria ya puede tomar el jueves" '[[ $r == *"/admin/planificador"* ]]'
+check "Al liberar horas, el jueves de Maria deja de ser hora extra (recalculo de la semana)" '[[ $(sql "SELECT CONCAT(es_extra,\"|\",minutos_extra) FROM turnoplaner.asignaciones WHERE usuario_id=$MARIA AND fecha=\"$JUE\" AND deleted_at IS NULL") == "0|0" ]]'
 get a admin/tipos-turno >/dev/null; cp "$D/out.html" "$D/t.html"; post a admin/tipos-turno/1/baja "$D/t.html" >/dev/null; follow a admin/tipos-turno
 check "No deja dar de baja un turno con asignaciones futuras (HU-12)" 'has "tiene turnos asignados desde hoy en adelante"'
 get a admin/sectores >/dev/null; cp "$D/out.html" "$D/s.html"; post a admin/sectores/1/baja "$D/s.html" >/dev/null; follow a admin/sectores
-check "No deja dar de baja un sector con asignaciones futuras" 'has "No se puede dar de baja «UTI»"'
+check "No deja dar de baja un sector con asignaciones futuras" 'has "No se puede dar de baja «Internación general»"'
 get a admin/asignaciones/$AMIE/editar >/dev/null; cp "$D/out.html" "$D/ed.html"
 post a admin/asignaciones/$AMIE/eliminar "$D/ed.html" >/dev/null; follow a "admin/planificador?sector=1&semana=$LUN"
 check "Eliminar turno futuro con confirmacion" 'has "Turno eliminado del"'
@@ -283,66 +291,74 @@ LUN_SIN_CEROS=$(date -d "$LUN" +%Y-%-m-%-d); MANANA=$(date -d "tomorrow" +%F)
 asignar $MARIA 1 1 "2020-1-5" >/dev/null; follow a admin/asignaciones/crear
 check "Fecha pasada sin ceros (2020-1-5) rechazada" 'has "Ingrese una fecha válida"'
 asignar $MARIA 1 1 "$(date -d "+400 days" +%F)" >/dev/null; follow a admin/asignaciones/crear
-check "Fecha a mas de un año rechazada" 'has "hasta un año hacia adelante"'
+check "Fecha fuera de la ventana de 2 meses rechazada" 'has "se habilita con 2 meses de anticipación"'
 get a "admin/asignaciones/crear?sector=1&tipo=1&fecha=$LUN" >/dev/null
 check "La lista muestra las horas de la semana de cada enfermero/a" 'has "de 36 h esta semana"'
-check "Quien ya tiene un turno superpuesto aparece no disponible" 'has "no disponible: ya tiene un turno que se superpone"'
+check "Quien ya tiene un turno superpuesto aparece no disponible, con el motivo" 'has "No disponible: Ya tiene un turno que se superpone"'
+check "Los no disponibles van deshabilitados (radios reales, andan sin JS)" 'grep -q "type=\"radio\"" "$D/out.html" && grep -q "name=\"usuario_id\"" "$D/out.html" && grep -q " disabled" "$D/out.html"'
 get a admin/tipos-turno/1/editar >/dev/null; cp "$D/out.html" "$D/t.html"
-post a admin/tipos-turno/1/editar "$D/t.html" -d "nombre=Ma%C3%B1ana&hora_inicio=07:00&hora_fin=15:00&color=%23c98a00" >/dev/null; follow a admin/tipos-turno/1/editar
+post a admin/tipos-turno/1/editar "$D/t.html" -d "sector_id=1&nombre=Ma%C3%B1ana&hora_inicio=07:00&hora_fin=15:00&color=%23c98a00" >/dev/null; follow a admin/tipos-turno/1/editar
 check "No deja cambiar el horario de un turno con asignaciones futuras" 'has "No se puede cambiar el horario de «Mañana»"'
 cp "$D/out.html" "$D/t.html"
-post a admin/tipos-turno/1/editar "$D/t.html" -d "nombre=Ma%C3%B1ana&hora_inicio=06:00&hora_fin=14:00&color=%23ff0000" >/dev/null; follow a admin/tipos-turno/1/editar
+post a admin/tipos-turno/1/editar "$D/t.html" -d "sector_id=1&nombre=Ma%C3%B1ana&hora_inicio=06:00&hora_fin=14:00&color=%23ff0000" >/dev/null; follow a admin/tipos-turno/1/editar
 check "Color fuera de la paleta rechazado" 'has "Elija uno de los colores de la lista"'
 get a admin/usuarios >/dev/null; cp "$D/out.html" "$D/u.html"
 post a admin/usuarios/baja/$MARIA "$D/u.html" >/dev/null; follow a admin/usuarios
 check "No deja dar de baja a un enfermero/a con turnos futuros" 'has "No se puede dar de baja a Gomez, Maria" && has "Planificador"'
 check "BD: sigue activa" '[[ $(sql "SELECT estado FROM turnoplaner.usuarios WHERE id=$MARIA") == "ACTIVO" ]]'
-get a "admin/planificador?sector=1&semana=$LUN" >/dev/null
-check "Cuadricula accesible: el nombre dice que turno y dia reasigna" 'has "reasignar su turno Mañana del lunes" && has "Quitar a Gomez, Maria del turno Mañana"'
+get a "admin/planificador?sector=1&mes=${LUN:0:7}" >/dev/null
+check "Calendario accesible: el + dice que turno y que dia asigna y el dia se abre con un boton" 'has "Asignar turno Mañana el día" && has "Ver día"'
+check "Calendario sin controles anidados (la celda no es un boton)" '! grep -q "<td[^>]*role=\"button\"" "$D/out.html"'
 check "Cuadricula accesible: la cobertura se lee completa" 'has "de 3 enfermeros mínimos" || has "de 3 asignados"'
 check "Sin opacidad en los dias pasados" '! grep -q "opacity: 0.75" "$RAIZ/public/css/app.css"'
 
 echo "== HU-14 Modal AJAX y resumen de horas"
 ajax(){ local url=$1 page=$2; shift 2; curl -s -b "$D/a" -c "$D/a" -o "$D/out.html" -w "%{http_code}" -H "X-Requested-With: XMLHttpRequest" -H "Accept: application/json" --data-urlencode "csrf_test_name=$(tok "$page")" "$@" "$B/$url"; }
-get a "admin/planificador?sector=2&semana=$LUN" >/dev/null; cp "$D/out.html" "$D/pl.html"
+get a "admin/planificador?sector=2&mes=${LUN:0:7}" >/dev/null; cp "$D/out.html" "$D/pl.html"
 check "La cuadricula trae el modal de asignar y el de quitar" 'grep -q "id=\"modalAsignar\"" "$D/pl.html" && grep -q "id=\"modalQuitar\"" "$D/pl.html" && grep -q "data-modal-asignar" "$D/pl.html"'
-check "Resumen de horas de la semana por enfermero/a" 'grep -q "Horas de la semana por enfermero/a" "$D/pl.html" && grep -q "de 36 h" "$D/pl.html"'
+check "Resumen de horas por enfermero/a: semana actual contra el tope semanal" 'grep -q " h de 36 h" "$D/pl.html" && grep -q " h de 40 h" "$D/pl.html" && grep -q "Horas de esta semana" "$D/pl.html"'
+r=$(curl -s -b "$D/a" -o "$D/out.html" -w "%{http_code}" -H "X-Requested-With: XMLHttpRequest" "$B/admin/asignaciones/disponibilidad?sector_id=2&tipo_turno_id=4&fecha=$JUE")
+check "El modal consulta la disponibilidad real (JSON con horas de la semana)" '[[ $r == 200 ]] && has "\"ok\": true" && has "esta semana"'
+r=$(curl -s -b "$D/a" -o "$D/out.html" -w "%{http_code}" -H "X-Requested-With: XMLHttpRequest" "$B/admin/asignaciones/disponibilidad?sector_id=2&tipo_turno_id=1&fecha=$JUE")
+check "Disponibilidad con un turno de otro sector da 422" '[[ $r == 422 ]]'
+r=$(curl -s -b "$D/a" -o /dev/null -w "%{http_code}" "$B/admin/asignaciones/disponibilidad?sector_id=2&tipo_turno_id=4&fecha=$JUE")
+check "Disponibilidad sin AJAX no existe (404)" '[[ $r == 404 ]]'
 r=$(ajax admin/asignaciones/crear "$D/pl.html" -d "usuario_id=$JUAN&sector_id=2&tipo_turno_id=4&fecha=$JUE")
 check "AJAX: asigna desde el modal y responde JSON ok" '[[ $r == 200 ]] && has "\"ok\": true"'
-get a "admin/planificador?sector=2&semana=$LUN" >/dev/null; cp "$D/out.html" "$D/pl.html"
-check "Tras recargar, la cuadricula muestra el mensaje y al enfermero en Guardia" 'grep -q "Turno asignado: Perez, Juan · Guardia" "$D/pl.html" && grep -q "data-quitar" "$D/pl.html"'
-r=$(ajax admin/asignaciones/crear "$D/pl.html" -d "usuario_id=$JUAN&sector_id=2&tipo_turno_id=1&fecha=$JUE")
+get a "admin/planificador?sector=2&mes=${LUN:0:7}" >/dev/null; cp "$D/out.html" "$D/pl.html"
+check "Tras recargar, el planificador muestra el mensaje y al enfermero en Guardia" 'grep -q "Turno asignado: Perez, Juan · Guardia" "$D/pl.html" && grep -q "Perez, Juan" "$D/pl.html"'
+r=$(ajax admin/asignaciones/crear "$D/pl.html" -d "usuario_id=$JUAN&sector_id=1&tipo_turno_id=1&fecha=$JUE")
 check "AJAX: superposicion devuelve 422 con el error en JSON (validaciones de HU-13)" '[[ $r == 422 ]] && has "se superpone" && has "\"csrf\""'
 NUEVA=$(sql "SELECT id FROM turnoplaner.asignaciones WHERE usuario_id=$JUAN AND sector_id=2 AND fecha=\"$JUE\" AND deleted_at IS NULL")
 r=$(ajax admin/asignaciones/$NUEVA/eliminar "$D/pl.html")
 check "AJAX: con el token del error anterior ya usado, el POST se rechaza (CSRF regenerado)" '[[ $r == 403 ]]'
-get a "admin/planificador?sector=2&semana=$LUN" >/dev/null; cp "$D/out.html" "$D/pl.html"
+get a "admin/planificador?sector=2&mes=${LUN:0:7}" >/dev/null; cp "$D/out.html" "$D/pl.html"
 r=$(ajax admin/asignaciones/$NUEVA/eliminar "$D/pl.html")
 check "AJAX: quitar desde el modal" '[[ $r == 200 ]] && has "\"ok\": true" && [[ $(sql "SELECT deleted_at IS NOT NULL FROM turnoplaner.asignaciones WHERE id=$NUEVA") == "1" ]]'
 
 echo "== HU-17 Mi cronograma"
 login z juan.perez@turnoplaner.local Nueva2026 >/dev/null
 get z "mi-cronograma?vista=semana&fecha=$LUN" >/dev/null
-check "Semana: muestra su turno con fecha, sector, turno y horario" 'texto | grep -q "lunes $(date -d $LUN +%d/%m/%Y)" && has "UTI" && has ">Mañana<" && texto | grep -q "06:00 →a 14:00"'
+check "Semana: muestra su turno con fecha, sector, turno y horario" 'texto | grep -q "lunes $(date -d $LUN +%d/%m/%Y)" && has "Internación general" && has ">Mañana<" && texto | grep -q "06:00 →a 14:00"'
 check "Semana: estado del turno (Programado)" 'has "estado-turno--programado" && has ">Programado<"'
 check "Semana: los dias sin turno dicen Sin turno asignado" 'has "Sin turno asignado" && ! has "Franco"'
 check "Semana: total del periodo" 'has "1 turno en este período" && has "8 h en total"'
 check "Privacidad: no ve los turnos de otra enfermera" '! has "Gomez" && ! has ">Noche<"'
 check "Resumen Hoy/Mañana arriba (con el proximo turno si no es mañana)" 'has "titulo-resumen" && { has "Próximo turno:" || [[ $LUN == $(date -d tomorrow +%F) ]]; }'
-check "Lector de pantalla: una frase completa por turno en la agenda" 'has "Mañana en UTI" && has "de 06:00 a 14:00, programado."'
+check "Lector de pantalla: una frase completa por turno en la agenda" 'has "Mañana en Internación general" && has "de 06:00 a 14:00, programado."'
 get z "mi-cronograma?vista=mes&fecha=$LUN" >/dev/null
 check "Mes: titulo del mes y su turno" 'has "$(date -d $LUN +%Y)" && has "1 turno en este período" && has ">Mañana<"'
 check "Mes: navegacion Anterior, Este mes y Siguiente" 'has "Anterior" && has "Este mes" && has "Siguiente"'
 get z "mi-cronograma?vista=semana&fecha=$LUN&usuario_id=$MARIA" >/dev/null
 check "Privacidad: un usuario_id en la URL no cambia de quien son los turnos" '! has "Gomez" && has "1 turno en este período"'
-r=$(get z "mi-cronograma?vista=%3Cscript%3E&fecha=no-fecha"); check "Parametros invalidos no rompen (vista semana por defecto)" '[[ $r == 200* ]] && has "Semana del"'
+r=$(get z "mi-cronograma?vista=%3Cscript%3E&fecha=no-fecha"); check "Parametros invalidos no rompen (vista mes por defecto)" '[[ $r == 200* ]] && has "Este mes"'
 get z "mi-cronograma?vista=mes&fecha=2020-01-15" >/dev/null
 check "Mes sin turnos: estado vacio con link al mes actual" 'has "No tiene turnos asignados en enero 2020" && has "Ir al mes actual"'
 
 echo "== HU-17 Bordes (revision QA)"
-r=$(get z "mi-cronograma?vista[]=mes&fecha[]=x"); check "Parametros en forma de arreglo no dan error 500" '[[ $r == 200* ]] && has "Semana del"'
+r=$(get z "mi-cronograma?vista[]=mes&fecha[]=x"); check "Parametros en forma de arreglo no dan error 500" '[[ $r == 200* ]] && has "Este mes"'
 r=$(get a "admin/usuarios?estado[]=BAJA&q[]=x"); check "Arreglos en filtros del admin tampoco rompen" '[[ $r == 200* ]]'
-r=$(get a "admin/planificador?sector[]=1&semana[]=x"); check "Arreglos en el planificador tampoco rompen" '[[ $r == 200* ]]'
+r=$(get a "admin/planificador?sector[]=1&mes[]=x"); check "Arreglos en el planificador tampoco rompen" '[[ $r == 200* ]]'
 get z "mi-cronograma?vista=semana&fecha=2026-12-31" >/dev/null; check "Semana con cambio de año" 'has "Semana del 28/12/2026 al 03/01/2027"'
 get z "mi-cronograma?vista=semana&fecha=2026-02-30" >/dev/null; check "Fecha inexistente cae a la semana actual" 'has "Semana del $(date -d "$(date +%F) -$(( $(date +%u) - 1 )) day" +%d/%m/%Y)"'
 get z "mi-cronograma?vista=semana&fecha=9999-12-31" >/dev/null; check "Año fuera de rango cae a la semana actual" 'has "Semana del $(date -d "$(date +%F) -$(( $(date +%u) - 1 )) day" +%d/%m/%Y)" && ! texto | grep -q "/9999"'

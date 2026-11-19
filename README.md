@@ -42,6 +42,11 @@ Stack: PHP 8.2 + CodeIgniter 4.7 + MySQL (XAMPP) + HTML5 / CSS3 + Bootstrap 5.3 
    C:\xampp\php\php.exe spark migrate
    C:\xampp\php\php.exe spark db:seed TurnoplanerSeeder
    ```
+
+   Opcional, datos de prueba (7 sectores, 21 tipos de turno, 50 enfermeros/as y turnos de noviembre y diciembre de 2026), despues del script anterior:
+   ```
+   C:\xampp\mysql\bin\mysql.exe -u root turnoplaner < database\02_datos_prueba.sql
+   ```
 5. Abrir http://localhost:8080 en el navegador.
 
 Usuarios de prueba que crea el script (solo para desarrollo):
@@ -72,11 +77,12 @@ y entrar a http://localhost/turnoplaner/public (cambiar `app.baseURL` acorde).
 | HU-08 | Baja logica y reactivacion (admin) | Hecha |
 | HU-09 | Alta de sector con dotacion minima por turno | Hecha |
 | HU-10 | Listado, edicion, baja y reactivacion de sectores | Hecha |
-| HU-11 | Alta de tipo de turno con duracion calculada (incluye turnos que cruzan la medianoche) | Hecha |
+| HU-11 | Alta de tipo de turno por sector con duracion calculada (incluye turnos que cruzan la medianoche) | Hecha |
 | HU-12 | Listado, edicion, baja y reactivacion de tipos de turno | Hecha |
-| HU-13 | Asignar, reasignar y eliminar turnos, con control de superposicion y de carga horaria semanal | Hecha |
-| HU-14 | Cuadricula semanal por sector: cobertura, agregar/quitar con modal (AJAX) y resumen de horas por enfermero | Hecha |
-| HU-15 a HU-20 | Tablero de cobertura, coberturas, mi cronograma con turnos, ausencias, historial | Pendientes |
+| HU-13 | Asignar, reasignar y eliminar turnos, con control de superposicion; lo que supera la carga semanal se registra como hora extra | Hecha |
+| HU-14 | Calendario mensual por sector: cobertura, asignar/reasignar/quitar con modal (AJAX), disponibilidad real y horas por enfermero | Hecha |
+| HU-17 | Mi cronograma: turnos propios por mes o semana, resumen de hoy y mañana | Hecha |
+| HU-15, 16, 18, 19, 20 | Tablero de cobertura, coberturas, ausencias, historial, check-in | Pendientes (final) |
 
 ## Pruebas
 
@@ -87,7 +93,7 @@ bash tests/e2e/turnoplaner_e2e.sh
 C:\xampp\php\php.exe spark test:hu05
 ```
 
-`turnoplaner_e2e.sh` recorre los criterios de aceptacion de HU-01 a HU-14 (140 casos) con sesion, CSRF, AJAX y base de datos.
+`turnoplaner_e2e.sh` recorre los criterios de aceptacion de HU-01 a HU-14 y HU-17 (171 casos) con sesion, CSRF, AJAX y base de datos.
 **Reinicia la base local** con `database/turnoplaner.sql` antes de empezar.
 
 ## Donde esta cada cosa

@@ -54,7 +54,7 @@ $notaSalida = static fn (string $dia): string => isset($salidas[$dia])
                             <td><?= esc((string) $t->sector_nombre) ?><?= (int) $t->sector_critico === 1 ? ' <span class="small text-body-secondary">(área crítica)</span>' : '' ?></td>
                             <td><?= $pieza($t, 'etiqueta') ?></td>
                             <td><?= $pieza($t, 'horario') ?></td>
-                            <td><?= $pieza($t, 'estado') ?></td>
+                            <td><?= $pieza($t, 'estado') ?> <?= $pieza($t, 'extra') ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -80,7 +80,7 @@ $notaSalida = static fn (string $dia): string => isset($salidas[$dia])
                     <div aria-hidden="true">
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
                             <?= $pieza($t, 'etiqueta') ?>
-                            <?= $pieza($t, 'estado') ?>
+                            <span class="d-inline-flex align-items-center gap-1"><?= $pieza($t, 'estado') ?><?= $pieza($t, 'extra') ?></span>
                         </div>
                         <div><i class="bi bi-clock me-1"></i><?= $pieza($t, 'horario') ?></div>
                         <div class="small text-body-secondary"><i class="bi bi-hospital me-1"></i><?= esc((string) $t->sector_nombre) ?><?= (int) $t->sector_critico === 1 ? ' (área crítica)' : '' ?></div>

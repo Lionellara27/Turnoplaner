@@ -5,6 +5,7 @@
  *  - 'horario':  "06:00 → 14:00"; la Noche muestra el día de salida: "22:00 → 06:00 del mar 10/11".
  *  - 'estado':   Programado / En curso / Finalizado (ícono + texto, nunca solo color).
  *  - 'frase':    una oración completa para lectores de pantalla (la agenda del celular oculta las piezas visuales).
+ *  - 'extra':    marca "HE" si el turno se registró como hora extra (con el texto completo para lectores de pantalla).
  *
  * @var \App\Entities\Asignacion $t
  * @var string                   $ahora Y-m-d H:i:s
@@ -19,7 +20,9 @@ $textos = ['proximo' => 'programado', 'en_curso' => 'en curso', 'finalizado' => 
 <?php elseif ($parte === 'horario'): ?>
     <span class="text-nowrap"><?= esc($t->horaInicio()) ?> <span aria-hidden="true">→</span><span class="visually-hidden">a</span> <?= esc($t->horaFin()) ?></span><?php if ($t->terminaAlDiaSiguiente()): ?> <span class="text-nowrap">del <?= esc(mb_substr(dia_semana($salida), 0, 3)) ?> <?= esc(date('d/m', strtotime($salida))) ?></span><?php endif; ?>
 <?php elseif ($parte === 'frase'): ?>
-    <span class="visually-hidden"><?= esc((string) $t->tipo_nombre) ?> en <?= esc((string) $t->sector_nombre) ?><?= (int) $t->sector_critico === 1 ? ' (área crítica)' : '' ?>, de <?= esc($t->horaInicio()) ?> a <?= esc($t->horaFin()) ?><?= $t->terminaAlDiaSiguiente() ? ' del ' . esc(fecha_larga($salida)) : '' ?>, <?= esc($textos[$estado]) ?>.</span>
+    <span class="visually-hidden"><?= esc((string) $t->tipo_nombre) ?> en <?= esc((string) $t->sector_nombre) ?><?= (int) $t->sector_critico === 1 ? ' (área crítica)' : '' ?>, de <?= esc($t->horaInicio()) ?> a <?= esc($t->horaFin()) ?><?= $t->terminaAlDiaSiguiente() ? ' del ' . esc(fecha_larga($salida)) : '' ?>, <?= esc($textos[$estado]) ?><?= $t->esExtra() ? ', registrado como hora extra' : '' ?>.</span>
+<?php elseif ($parte === 'extra'): ?>
+    <?php if ($t->esExtra()): ?><span class="badge-extra"><span aria-hidden="true">HE</span><span class="visually-hidden">Hora extra</span></span><?php endif; ?>
 <?php else: ?>
     <?php if ($estado === 'en_curso'): ?>
         <span class="estado-turno estado-turno--en-curso"><i class="bi bi-play-circle-fill" aria-hidden="true"></i>En curso</span>

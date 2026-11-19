@@ -9,16 +9,12 @@ use App\Models\Concerns\BajaLogica;
 use CodeIgniter\Model;
 
 /**
- * Tipos de turno / franjas horarias (HU-11, HU-12).
+ * Tipos de turno / franjas horarias (HU-11, HU-12), asociados a un sector.
  */
 class TipoTurnoModel extends Model
 {
     use BajaLogica;
 
-    /**
-     * Colores sugeridos para las etiquetas de la cuadrícula (HU-14).
-     * Con texto blanco u oscuro (según el color) todos cumplen contraste AA: ver TipoTurno::colorTexto().
-     */
     public const PALETA = [
         '#c98a00' => 'Ámbar',
         '#b34700' => 'Naranja',
@@ -37,7 +33,7 @@ class TipoTurnoModel extends Model
     protected $returnType     = TipoTurno::class;
     protected $useSoftDeletes = true;
     protected $protectFields  = true;
-    protected $allowedFields  = ['nombre', 'hora_inicio', 'hora_fin', 'duracion_minutos', 'color', 'estado'];
+    protected $allowedFields  = ['sector_id', 'nombre', 'hora_inicio', 'hora_fin', 'duracion_minutos', 'color', 'estado'];
 
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
@@ -45,10 +41,15 @@ class TipoTurnoModel extends Model
     protected $updatedField  = 'updated_at';
     protected $deletedField  = 'deleted_at';
 
-    // Segunda barrera de validación (la primera está en el controlador).
+    /**
+     * sector_id: el sector tiene que existir y estar ACTIVO (la baja lógica pone estado = BAJA y deleted_at
+     * juntos). Al editar, save() de una entidad solo valida los campos que cambiaron, así que conservar el
+     * sector actual aunque esté de baja sigue permitido; moverlo a un sector de baja, no.
+     */
     protected $validationRules = [
         'id'               => 'permit_empty|is_natural_no_zero',
-        'nombre'           => 'required|min_length[3]|max_length[60]|is_unique[tipos_turno.nombre,id,{id}]',
+        'sector_id'        => 'required|is_natural_no_zero|is_not_unique[sectores.id,estado,ACTIVO]',
+        'nombre'           => 'required|min_length[3]|max_length[60]',
         'hora_inicio'      => 'required',
         'hora_fin'         => 'required',
         'duracion_minutos' => 'required|is_natural_no_zero|less_than[1440]',
@@ -57,14 +58,9 @@ class TipoTurnoModel extends Model
     ];
 
     protected $validationMessages = [
-        'nombre' => ['is_unique' => 'Ya existe un tipo de turno con ese nombre.'],
+        'sector_id' => ['is_not_unique' => 'El sector seleccionado no existe o está dado de baja.'],
     ];
 
-    /**
-     * Duración en minutos entre dos horas "HH:MM". Si el fin es menor o igual al inicio,
-     * el turno cruza la medianoche: 22:00 a 06:00 = 480 minutos (8 h).
-     * Devuelve 0 si inicio y fin son iguales (turno inválido).
-     */
     public static function calcularDuracionMinutos(string $inicio, string $fin): int
     {
         $aMinutos = static function (string $hora): int {
@@ -77,29 +73,63 @@ class TipoTurnoModel extends Model
     }
 
     /**
-     * Listado con búsqueda por nombre y filtro de estado (HU-12).
+     * Listado con búsqueda por nombre, filtro de estado y filtro opcional por sector (HU-12).
      *
      * @return list<TipoTurno>
      */
-    public function listar(string $estado = 'ACTIVO', string $busqueda = ''): array
+    public function listar(string $estado = 'ACTIVO', string $busqueda = '', ?int $sectorId = null): array
     {
-        $this->filtrarPorEstado($estado);
+        $this->select('tipos_turno.*, sectores.nombre AS sector_nombre')
+            ->join('sectores', 'sectores.id = tipos_turno.sector_id', 'left');
+
+        // La baja lógica también completa deleted_at (BajaLogica::darDeBajaSiLibre usa delete()), así que
+        // "Dados de baja" y "Todos" tienen que incluir los borrados: si no, el filtro BAJA siempre sale vacío.
+        // El estado se califica con la tabla para no chocar con sectores.estado del JOIN.
+        if ($estado === 'BAJA') {
+            $this->withDeleted()->where('tipos_turno.estado', 'BAJA');
+        } elseif ($estado === 'TODOS') {
+            $this->withDeleted();
+        } else {
+            $this->where('tipos_turno.estado', 'ACTIVO');
+        }
+
+        if ($sectorId !== null && $sectorId > 0) {
+            $this->where('tipos_turno.sector_id', $sectorId);
+        }
 
         $busqueda = trim($busqueda);
         if ($busqueda !== '') {
-            $this->like('nombre', $busqueda);
+            $this->like('tipos_turno.nombre', $busqueda);
         }
 
-        return $this->orderBy('hora_inicio', 'ASC')->orderBy('nombre', 'ASC')->paginate(self::POR_PAGINA);
+        return $this->orderBy('sectores.nombre', 'ASC')
+            ->orderBy('tipos_turno.hora_inicio', 'ASC')
+            ->orderBy('tipos_turno.nombre', 'ASC')
+            ->paginate(self::POR_PAGINA);
     }
 
     /**
-     * Tipos de turno activos, ordenados por hora de inicio (para asignar turnos y la cuadrícula).
+     * Tipos de turno activos de un sector específico, ordenados por hora de inicio.
+     *
+     * @return list<TipoTurno>
+     */
+    public function activosPorSector(int $sectorId): array
+    {
+        return $this->where('estado', 'ACTIVO')
+            ->where('sector_id', $sectorId)
+            ->orderBy('hora_inicio', 'ASC')
+            ->findAll();
+    }
+
+    /**
+     * Tipos de turno activos, ordenados por hora de inicio.
      *
      * @return list<TipoTurno>
      */
     public function activos(): array
     {
-        return $this->orderBy('hora_inicio', 'ASC')->findAll();
+        return $this->where('estado', 'ACTIVO')
+            ->orderBy('hora_inicio', 'ASC')
+            ->findAll();
     }
 }

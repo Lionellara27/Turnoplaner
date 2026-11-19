@@ -1,28 +1,42 @@
 <?php
 /**
- * HU-17: Mi Cronograma.
+ * HU-17: Mi cronograma (pantalla inicial del rol ENFERMERO). DESIGN.md 4.11.
  *
- * @var string                                         $vista       'semana' | 'mes'
- * @var string                                         $periodo     "Semana del ... al ..." o "Noviembre 2026"
- * @var string                                         $desde, $hasta, $anterior, $siguiente, $hoy, $manana, $ahora
- * @var bool                                           $esActual
- * @var list<string>                                   $dias        fechas a mostrar
- * @var array<string, list<\App\Entities\Asignacion>>  $porDia
- * @var array<string, \App\Entities\Asignacion>        $salidas
- * @var int                                            $cantidad, $minutos
- * @var \App\Entities\Asignacion|null                  $enCurso, $siguienteTurno
- * @var list<\App\Entities\Asignacion>                 $turnosHoy, $turnosManana
+ * - Arriba, siempre: resumen Hoy / Mañana (independiente del período elegido).
+ * - Vista mes (por defecto): calendario mensual desde 1200 px y agenda por día debajo
+ *   (en el mes actual, los días ya pasados se pliegan en un <details>).
+ * - Vista semana: los 7 días, con "Sin turno asignado" en los libres.
+ * Privacidad: muestra exclusivamente los turnos del usuario autenticado (el controlador lo toma de la sesión).
+ *
+ * @var string                                        $vista, $periodo, $desde, $hasta, $anterior, $siguiente
+ * @var bool                                          $esActual
+ * @var string                                        $hoy, $manana, $ahora
+ * @var list<string>                                  $dias
+ * @var list<list<string>>                            $semanas
+ * @var array<string, list<\App\Entities\Asignacion>> $porDia
+ * @var array<string, \App\Entities\Asignacion>       $salidas
+ * @var int                                           $cantidad, $minutos, $minutosExtra
+ * @var \App\Entities\Asignacion|null                 $enCurso, $siguienteTurno
+ * @var list<\App\Entities\Asignacion>                $turnosHoy, $turnosManana
  */
-$fechaVista = $esActual ? $hoy : $desde;
-$url   = static fn (string $v, string $f): string => base_url('mi-cronograma') . '?' . http_build_query(['vista' => $v, 'fecha' => $f], '', '&amp;');
-$pieza = static fn ($t, string $parte): string => view('cronograma/_turno', ['t' => $t, 'ahora' => $ahora, 'parte' => $parte]);
+use App\Models\AsignacionModel;
+
+$semanas      = $semanas ?? [];
+$minutosExtra = $minutosExtra ?? 0;
+$anioMes      = substr($desde, 0, 7);
+$fechaVista   = $esActual ? $hoy : $desde;
+$url          = static fn (string $v, string $f): string => base_url('mi-cronograma') . '?' . http_build_query(['vista' => $v, 'fecha' => $f], '', '&amp;');
+$pieza        = static fn ($t, string $parte): string => view('cronograma/_turno', ['t' => $t, 'ahora' => $ahora, 'parte' => $parte]);
 // Un turno del resumen: etiqueta, horario y sector, apilados (sin "·" sueltos).
 $resumen = static fn ($t): string => '<div class="d-flex flex-wrap align-items-center gap-2">' . $pieza($t, 'etiqueta')
     . '<span>' . $pieza($t, 'horario') . '</span>'
-    . '<span><i class="bi bi-hospital me-1" aria-hidden="true"></i>' . esc((string) $t->sector_nombre) . '</span></div>';
-$caption = 'Mis turnos, ' . mb_strtolower($periodo);
+    . '<span><i class="bi bi-hospital me-1" aria-hidden="true"></i>' . esc((string) $t->sector_nombre) . '</span>'
+    . $pieza($t, 'extra') . '</div>';
+$caption   = 'Mis turnos, ' . mb_strtolower($periodo);
+$unidad    = $vista === 'semana' ? 'semana' : 'mes';
+$nombresDia = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
-// Vista mes del mes actual: los días ya pasados se pliegan para que lo que viene quede arriba.
+// Vista mes del mes actual: en la agenda (pantallas chicas) los días ya pasados se pliegan.
 $pasados = [];
 $resto   = $dias;
 if ($vista === 'mes' && $esActual) {
@@ -97,19 +111,19 @@ $datosDias = ['porDia' => $porDia, 'salidas' => $salidas, 'hoy' => $hoy, 'ahora'
             <?php endif; ?>
         </section>
 
-        <!-- Vista (semana / mes) y navegación -->
+        <!-- Vista (mes / semana) y navegación -->
         <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mb-3">
             <nav aria-label="Elegir vista">
                 <div class="btn-group w-100" role="group">
-                    <a class="btn btn-outline-secondary<?= $vista === 'semana' ? ' active' : '' ?>" href="<?= $url('semana', $fechaVista) ?>" <?= $vista === 'semana' ? 'aria-current="page"' : '' ?>>
-                        <i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Semana
-                    </a>
                     <a class="btn btn-outline-secondary<?= $vista === 'mes' ? ' active' : '' ?>" href="<?= $url('mes', $fechaVista) ?>" <?= $vista === 'mes' ? 'aria-current="page"' : '' ?>>
                         <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Mes
                     </a>
+                    <a class="btn btn-outline-secondary<?= $vista === 'semana' ? ' active' : '' ?>" href="<?= $url('semana', $fechaVista) ?>" <?= $vista === 'semana' ? 'aria-current="page"' : '' ?>>
+                        <i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Semana
+                    </a>
                 </div>
             </nav>
-            <nav aria-label="Cambiar de <?= $vista === 'semana' ? 'semana' : 'mes' ?>">
+            <nav aria-label="Cambiar de <?= $unidad ?>">
                 <div class="btn-group w-100" role="group">
                     <a class="btn btn-outline-secondary text-nowrap flex-grow-0" href="<?= $url($vista, $anterior) ?>"><i class="bi bi-chevron-left" aria-hidden="true"></i><span class="d-none d-sm-inline"> Anterior</span><span class="visually-hidden d-sm-none"><?= $vista === 'semana' ? 'Semana anterior' : 'Mes anterior' ?></span></a>
                     <a class="btn btn-outline-secondary text-nowrap<?= $esActual ? ' active' : '' ?>" href="<?= $url($vista, $hoy) ?>" <?= $esActual ? 'aria-current="true"' : '' ?>><?= $vista === 'semana' ? 'Esta semana' : 'Este mes' ?></a>
@@ -131,17 +145,89 @@ $datosDias = ['porDia' => $porDia, 'salidas' => $salidas, 'hoy' => $hoy, 'ahora'
         <?php else: ?>
             <p class="small text-body-secondary mb-3">
                 <?= $cantidad === 1 ? '1 turno' : esc((string) $cantidad) . ' turnos' ?> en este período ·
-                <?= esc(\App\Models\AsignacionModel::horasTexto($minutos)) ?> en total
+                <?= esc(AsignacionModel::horasTexto($minutos)) ?> en total<?php if ($minutosExtra > 0): ?> ·
+                    <span class="badge-extra"><span aria-hidden="true">HE</span><span class="visually-hidden">Horas extras:</span></span> <?= esc(AsignacionModel::horasTexto($minutosExtra)) ?> de horas extras<?php endif; ?>
             </p>
 
-            <?php if ($pasados !== []): ?>
-                <details class="dias-pasados mb-3">
-                    <summary class="mb-2">Ver <?= count($pasados) === 1 ? '1 día anterior' : count($pasados) . ' días anteriores' ?> de este mes</summary>
-                    <?= view('cronograma/_dias', $datosDias + ['dias' => $pasados]) ?>
-                </details>
-            <?php endif; ?>
+            <?php if ($vista === 'mes' && $semanas !== []): ?>
+                <!-- Computadora: calendario mensual -->
+                <div class="table-responsive border rounded-3 d-none d-xl-block mb-3">
+                    <table class="table align-top mb-0 tp-calendario">
+                        <caption class="visually-hidden"><?= esc($caption) ?></caption>
+                        <thead class="table-light text-center">
+                            <tr>
+                                <?php foreach ($nombresDia as $nombreDia): ?>
+                                    <th scope="col"><?= $nombreDia ?></th>
+                                <?php endforeach; ?>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($semanas as $semana): ?>
+                                <tr>
+                                    <?php foreach ($semana as $dia): ?>
+                                        <?php
+                                        $delMes    = substr($dia, 0, 7) === $anioMes;
+                                        $esHoy     = $dia === $hoy;
+                                        $turnosDia = $delMes ? ($porDia[$dia] ?? []) : [];
+                                        $salida    = $delMes ? ($salidas[$dia] ?? null) : null;
+                                        $clase     = ! $delMes ? 'tp-calendario__dia--fuera' : ($esHoy ? 'tp-calendario__dia--hoy' : '');
+                                        ?>
+                                        <td class="tp-calendario__dia <?= $clase ?>" <?= $esHoy ? 'aria-current="date"' : '' ?>>
+                                            <?php if (! $delMes): ?>
+                                                <span class="tp-calendario__numero" aria-hidden="true"><?= (int) substr($dia, 8, 2) ?></span>
+                                            <?php else: ?>
+                                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                                    <span class="tp-calendario__numero"><span class="visually-hidden"><?= esc(fecha_larga($dia)) ?></span><span aria-hidden="true"><?= (int) substr($dia, 8, 2) ?></span></span>
+                                                    <?php if ($esHoy): ?><span class="badge-hoy">Hoy</span><?php endif; ?>
+                                                </div>
 
-            <?= view('cronograma/_dias', $datosDias + ['dias' => $resto]) ?>
+                                                <?php if ($salida !== null): ?>
+                                                    <div class="tp-calendario__nota mb-1">
+                                                        <i class="bi bi-moon-stars me-1" aria-hidden="true"></i>Sale de <?= esc((string) $salida->tipo_nombre) ?> a las <?= esc($salida->horaFin()) ?>
+                                                    </div>
+                                                <?php endif; ?>
+
+                                                <?php if ($turnosDia === []): ?>
+                                                    <span class="tp-calendario__nota">Sin turno asignado</span>
+                                                <?php else: ?>
+                                                    <?php foreach ($turnosDia as $t): ?>
+                                                        <div class="tp-calendario__turno">
+                                                            <?= $pieza($t, 'frase') ?>
+                                                            <div aria-hidden="true">
+                                                                <div class="d-flex justify-content-between align-items-center gap-1">
+                                                                    <?= $pieza($t, 'etiqueta') ?>
+                                                                    <?= $pieza($t, 'extra') ?>
+                                                                </div>
+                                                                <div class="tp-calendario__sector"><i class="bi bi-hospital me-1"></i><?= esc((string) $t->sector_nombre) ?></div>
+                                                                <div class="tp-calendario__nota"><i class="bi bi-clock me-1"></i><?= $pieza($t, 'horario') ?></div>
+                                                                <div class="mt-1"><?= $pieza($t, 'estado') ?></div>
+                                                            </div>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
+                                        </td>
+                                    <?php endforeach; ?>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Celular y tablet: agenda por día (los días pasados del mes actual, plegados) -->
+                <div class="d-xl-none">
+                    <?php if ($pasados !== []): ?>
+                        <details class="dias-pasados mb-3">
+                            <summary class="mb-2">Ver <?= count($pasados) === 1 ? '1 día anterior' : count($pasados) . ' días anteriores' ?> de este mes</summary>
+                            <?= view('cronograma/_dias', $datosDias + ['dias' => $pasados]) ?>
+                        </details>
+                    <?php endif; ?>
+                    <?= view('cronograma/_dias', $datosDias + ['dias' => $resto]) ?>
+                </div>
+            <?php else: ?>
+                <!-- Vista semana -->
+                <?= view('cronograma/_dias', $datosDias + ['dias' => $dias]) ?>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </div>

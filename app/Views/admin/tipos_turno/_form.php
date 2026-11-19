@@ -2,18 +2,39 @@
 /**
  * Campos del tipo de turno, compartidos por el alta (HU-11) y la edición (HU-12).
  *
- * @var \App\Entities\TipoTurno|null $tipo    null en el alta
- * @var array<string, string>        $paleta  colores sugeridos [hex => nombre]
+ * @var \App\Entities\TipoTurno|null   $tipo     null en el alta
+ * @var array<string, string>          $paleta   colores sugeridos [hex => nombre]
+ * @var list<\App\Entities\Sector>     $sectores sectores elegibles (los arma TiposTurno::crear/editar;
+ *                                               la vista no consulta la base)
  */
-$tt     = $tipo ?? null;
-$paleta = $paleta ?? \App\Models\TipoTurnoModel::PALETA;
-$inicio = (string) old('hora_inicio', $tt?->inicio() ?? '', false);
-$fin    = (string) old('hora_fin', $tt?->fin() ?? '', false);
-$color  = (string) old('color', $tt?->color ?? array_key_first($paleta), false);
+$tt       = $tipo ?? null;
+$paleta   = $paleta ?? \App\Models\TipoTurnoModel::PALETA;
+$sectores = $sectores ?? [];
+$sectorId = (int) old('sector_id', (string) ($tt?->sector_id ?? ''), false);
+$inicio   = (string) old('hora_inicio', $tt?->inicio() ?? '', false);
+$fin      = (string) old('hora_fin', $tt?->fin() ?? '', false);
+$color    = (string) old('color', $tt?->color ?? array_key_first($paleta), false);
 ?>
 <p class="small text-body-secondary">Los campos con * son obligatorios.</p>
 
 <div class="row g-3">
+    <div class="col-12">
+        <div class="form-floating">
+            <select class="form-select<?= clase_invalido('sector_id') ?>" id="sector_id" name="sector_id" required
+                    aria-describedby="ayuda-sector" data-mensaje="Seleccione el sector.">
+                <option value="">Seleccione un sector...</option>
+                <?php foreach ($sectores as $sec): ?>
+                    <option value="<?= (int) $sec->id ?>" <?= $sectorId === (int) $sec->id ? 'selected' : '' ?>>
+                        <?= esc($sec->nombre) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <label for="sector_id">Sector *</label>
+            <?= feedback_campo('sector_id') ?>
+        </div>
+        <div id="ayuda-sector" class="form-text">El turno quedará disponible únicamente para planificar este sector (ej. UTI, Guardia).</div>
+    </div>
+
     <div class="col-12">
         <div class="form-floating">
             <input type="text" class="form-control<?= clase_invalido('nombre') ?>" id="nombre" name="nombre" placeholder="Nombre del turno"
@@ -22,7 +43,7 @@ $color  = (string) old('color', $tt?->color ?? array_key_first($paleta), false);
             <label for="nombre">Nombre del turno *</label>
             <?= feedback_campo('nombre') ?>
         </div>
-        <div id="ayuda-nombre" class="form-text">Ej: Mañana, Tarde, Noche, Guardia especial. No puede repetirse.</div>
+        <div id="ayuda-nombre" class="form-text">Ej: Mañana, Tarde, Noche, Guardia especial. No puede repetirse dentro del mismo sector.</div>
     </div>
 
     <div class="col-6">
@@ -45,7 +66,6 @@ $color  = (string) old('color', $tt?->color ?? array_key_first($paleta), false);
     </div>
     <div class="col-12">
         <div id="ayuda-horario" class="form-text">Formato 24 h. Si la hora de fin es menor que la de inicio, el turno termina al día siguiente (ej. Noche 22:00 a 06:00).</div>
-        <!-- Duración calculada en vivo por app.js; el servidor la vuelve a calcular al guardar -->
         <div class="duracion-calculada mt-2" id="duracion-calculada" aria-live="polite">
             <i class="bi bi-hourglass-split me-1" aria-hidden="true"></i><span data-duracion-texto>Complete el horario para ver la duración.</span>
         </div>
@@ -54,7 +74,7 @@ $color  = (string) old('color', $tt?->color ?? array_key_first($paleta), false);
     <div class="col-12">
         <fieldset id="color" tabindex="-1" aria-describedby="ayuda-color error-color">
             <legend class="form-label fw-semibold small mb-1">Color de la etiqueta *</legend>
-            <div class="form-text mt-0 mb-2" id="ayuda-color">Identifica el turno en la cuadrícula semanal. Siempre se muestra junto con el nombre.</div>
+            <div class="form-text mt-0 mb-2" id="ayuda-color">Identifica el turno en el calendario. Siempre se muestra junto con el nombre.</div>
             <div class="d-flex flex-wrap gap-2">
                 <?php foreach ($paleta as $hex => $nombreColor): ?>
                     <?php $idColor = 'color_' . ltrim($hex, '#'); ?>

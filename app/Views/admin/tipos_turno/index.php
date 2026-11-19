@@ -2,13 +2,15 @@
 /**
  * HU-12: consulta, edición y baja lógica de tipos de turno.
  *
- * @var list<\App\Entities\TipoTurno>        $tipos
- * @var \CodeIgniter\Pager\Pager             $pager
- * @var array{estado:string, q:string}       $filtros
+ * @var list<\App\Entities\TipoTurno>                      $tipos
+ * @var list<\App\Entities\Sector>                         $sectores
+ * @var \CodeIgniter\Pager\Pager                           $pager
+ * @var array{estado:string, q:string, sector_id:?int}     $filtros
  */
 $tipos      = $tipos ?? [];
-$filtros    = ($filtros ?? []) + ['estado' => 'ACTIVO', 'q' => ''];
-$hayFiltros = $filtros['q'] !== '' || $filtros['estado'] !== 'ACTIVO';
+$sectores   = $sectores ?? [];
+$filtros    = ($filtros ?? []) + ['estado' => 'ACTIVO', 'q' => '', 'sector_id' => null];
+$hayFiltros = $filtros['q'] !== '' || $filtros['estado'] !== 'ACTIVO' || $filtros['sector_id'] !== null;
 $total      = isset($pager) ? $pager->getTotal() : count($tipos);
 $detalleBaja = 'Ya no aparecerá para asignar turnos. No se permite si tiene turnos asignados desde hoy en adelante.';
 ?>
@@ -25,7 +27,7 @@ $detalleBaja = 'Ya no aparecerá para asignar turnos. No se permite si tiene tur
                 </div>
                 <div>
                     <h1 class="h4 mb-0 fw-semibold text-white">Tipos de turno</h1>
-                    <p class="mb-0 small subtitulo">Franjas horarias para planificar las guardias</p>
+                    <p class="mb-0 small subtitulo">Franjas horarias de cada sector</p>
                 </div>
             </div>
             <a href="<?= base_url('admin/tipos-turno/crear') ?>" class="btn btn-light text-nowrap fw-semibold shadow-sm">
@@ -37,7 +39,7 @@ $detalleBaja = 'Ya no aparecerá para asignar turnos. No se permite si tiene tur
     <div class="card-body p-4 bg-white">
 
         <form method="get" action="<?= base_url('admin/tipos-turno') ?>" class="row g-2 mb-3 align-items-end" role="search" aria-label="Buscar tipos de turno">
-            <div class="col-12 col-md-6 col-lg-6">
+            <div class="col-12 col-md-4">
                 <label for="q" class="form-label small fw-semibold mb-1">Buscar</label>
                 <div class="input-group">
                     <span class="input-group-text bg-light"><i class="bi bi-search" aria-hidden="true"></i></span>
@@ -45,6 +47,17 @@ $detalleBaja = 'Ya no aparecerá para asignar turnos. No se permite si tiene tur
                 </div>
             </div>
             <div class="col-12 col-sm-6 col-md-3">
+                <label for="sector_id" class="form-label small fw-semibold mb-1">Sector</label>
+                <select id="sector_id" name="sector_id" class="form-select">
+                    <option value="">Todos los sectores</option>
+                    <?php foreach ($sectores as $sec): ?>
+                        <option value="<?= (int) $sec->id ?>" <?= $filtros['sector_id'] === (int) $sec->id ? 'selected' : '' ?>>
+                            <?= esc($sec->nombre) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-12 col-sm-6 col-md-2">
                 <label for="estado" class="form-label small fw-semibold mb-1">Estado</label>
                 <select id="estado" name="estado" class="form-select">
                     <option value="ACTIVO" <?= $filtros['estado'] === 'ACTIVO' ? 'selected' : '' ?>>Activos</option>
@@ -52,7 +65,7 @@ $detalleBaja = 'Ya no aparecerá para asignar turnos. No se permite si tiene tur
                     <option value="TODOS" <?= $filtros['estado'] === 'TODOS' ? 'selected' : '' ?>>Todos</option>
                 </select>
             </div>
-            <div class="col-12 col-sm-6 col-md-3 d-flex gap-2">
+            <div class="col-12 col-md-3 d-flex gap-2">
                 <button class="btn btn-outline-secondary flex-fill" type="submit"><i class="bi bi-funnel me-1" aria-hidden="true"></i>Filtrar</button>
                 <?php if ($hayFiltros): ?>
                     <a href="<?= base_url('admin/tipos-turno') ?>" class="btn btn-outline-secondary" title="Limpiar filtros" aria-label="Limpiar filtros">
@@ -72,17 +85,20 @@ $detalleBaja = 'Ya no aparecerá para asignar turnos. No se permite si tiene tur
                     <a href="<?= base_url('admin/tipos-turno') ?>" class="btn btn-outline-secondary btn-sm">Quitar filtros</a>
                 <?php else: ?>
                     <p class="fw-semibold mb-1">Todavía no hay tipos de turno.</p>
-                    <p class="text-body-secondary small mb-3">Cree las franjas (Mañana, Tarde, Noche…) para poder asignar turnos.</p>
+                    <p class="text-body-secondary small mb-3">Cree las franjas (Mañana, Tarde, Noche…) de cada sector para poder asignar turnos.</p>
                     <a href="<?= base_url('admin/tipos-turno/crear') ?>" class="btn btn-tp btn-sm">Nuevo tipo de turno</a>
                 <?php endif; ?>
             </div>
         <?php else: ?>
-            <!-- Menos de 1200 px (con el menú lateral abierto la tabla no entra): tarjetas -->
+            <!-- Tarjetas móvil -->
             <ul class="list-unstyled row row-cols-1 row-cols-md-2 g-2 d-xl-none mb-0">
                 <?php foreach ($tipos as $t): ?>
                     <li class="col"><div class="border rounded-3 p-3 h-100">
                         <div class="d-flex justify-content-between align-items-start flex-wrap gap-1 mb-2">
-                            <?= view('admin/tipos_turno/_etiqueta', ['t' => $t]) ?>
+                            <div>
+                                <?= view('admin/tipos_turno/_etiqueta', ['t' => $t]) ?>
+                                <span class="badge bg-light text-dark border ms-1"><?= esc((string) ($t->sector_nombre ?? 'Sin sector')) ?></span>
+                            </div>
                             <?= view('partials/estado_registro', ['activo' => $t->estaActivo()]) ?>
                         </div>
                         <p class="mb-1"><i class="bi bi-clock me-1" aria-hidden="true"></i><?= view('admin/tipos_turno/_rango', ['t' => $t]) ?></p>
@@ -94,12 +110,13 @@ $detalleBaja = 'Ya no aparecerá para asignar turnos. No se permite si tiene tur
                 <?php endforeach; ?>
             </ul>
 
-            <!-- 1200 px o más: tabla -->
+            <!-- Tabla escritorio -->
             <div class="table-responsive d-none d-xl-block">
                 <table class="table table-hover align-middle border mb-0">
                     <caption class="visually-hidden">Listado de tipos de turno</caption>
                     <thead class="table-light">
                         <tr>
+                            <th scope="col">Sector</th>
                             <th scope="col">Turno</th>
                             <th scope="col">Horario</th>
                             <th scope="col" class="text-center">Horas</th>
@@ -110,6 +127,7 @@ $detalleBaja = 'Ya no aparecerá para asignar turnos. No se permite si tiene tur
                     <tbody>
                     <?php foreach ($tipos as $t): ?>
                         <tr>
+                            <td class="fw-semibold"><?= esc((string) ($t->sector_nombre ?? '-')) ?></td>
                             <td><?= view('admin/tipos_turno/_etiqueta', ['t' => $t]) ?></td>
                             <td class="text-nowrap">
                                 <?= view('admin/tipos_turno/_rango', ['t' => $t]) ?>

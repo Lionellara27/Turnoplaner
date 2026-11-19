@@ -20,8 +20,15 @@ class Asignacion extends Entity
         'sector_id'        => 'integer',
         'tipo_turno_id'    => 'integer',
         'duracion_minutos' => 'integer',
+        'es_extra'         => 'integer',
+        'minutos_extra'    => 'integer',
     ];
 
+    public function esExtra(): bool
+    {
+        return (int) ($this->attributes['es_extra'] ?? 0) === 1;
+    }
+    
     /**
      * Se puede reasignar o eliminar mientras el turno no haya terminado
      * (la mañana de hoy deja de ser editable a las 14:00).
@@ -85,5 +92,19 @@ class Asignacion extends Entity
     public function enfermeroDeBaja(): bool
     {
         return ($this->attributes['usuario_estado'] ?? 'ACTIVO') !== 'ACTIVO';
+    }
+
+    /** Matrícula profesional del enfermero/a si la consulta la trajo. */
+    public function matriculaEnfermero(): string
+    {
+        $mat = trim((string) ($this->attributes['matricula'] ?? ''));
+
+        return $mat !== '' ? $mat : 'Sin matrícula';
+    }
+
+    /** Especialidad del enfermero/a si la consulta la trajo. */
+    public function especialidadEnfermero(): string
+    {
+        return trim((string) ($this->attributes['especialidad'] ?? ''));
     }
 }

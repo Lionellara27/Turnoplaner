@@ -143,6 +143,8 @@ class UsuarioModel extends Model
     public function listarPersonal(string $estado = 'ACTIVO', string $especialidad = '', string $busqueda = ''): array
     {
         // Las bajas tienen deleted_at, así que para verlas hay que incluir los registros "borrados" lógicamente.
+        // 'ACTIVO' no agrega filtro: "pendiente de primer ingreso" no es un estado sino un ACTIVO con
+        // debe_cambiar_pass = 1, así que se lista junto a los demás (y el panel de inicio lo cuenta igual).
         if ($estado === 'BAJA') {
             $this->onlyDeleted();
         } elseif ($estado === 'TODOS') {

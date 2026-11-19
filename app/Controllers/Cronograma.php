@@ -24,7 +24,7 @@ class Cronograma extends BaseController
     {
         $vista = $this->textoGet('vista');
         if (! in_array($vista, self::VISTAS, true)) {
-            $vista = 'semana';
+            $vista = 'mes'; // Pantalla inicial en calendario mensual
         }
 
         $hoy    = date('Y-m-d');
@@ -32,6 +32,7 @@ class Cronograma extends BaseController
         $ahora  = date('Y-m-d H:i:s');
         $base   = $this->fechaValida($this->textoGet('fecha')) ?? $hoy;
 
+        $semanas = [];
         if ($vista === 'semana') {
             $desde     = AsignacionModel::lunesDe($base);
             $inicio    = new DateTimeImmutable($desde);
@@ -47,33 +48,36 @@ class Cronograma extends BaseController
             $anterior  = $inicio->modify('-1 month')->format('Y-m-d');
             $siguiente = $inicio->modify('+1 month')->format('Y-m-d');
             $actual    = substr($hoy, 0, 7) === substr($desde, 0, 7);
-            $periodo   = ucfirst(self::nombreMes((int) $inicio->format('n'))) . ' ' . $inicio->format('Y');
+            $periodo   = AsignacionModel::nombreMes($desde);
+
+            // Matriz de semanas (Lunes a Domingo) para dibujar la cuadrícula del calendario mensual
+            $semanas = AsignacionModel::semanasDelMes($desde);
         }
 
         $usuarioId = (int) session()->get('usuario_id');
         $modelo    = new AsignacionModel();
 
-        // Se trae también el día anterior al período para saber si el primer día "sale de una Noche".
         $diaPrevio = $inicio->modify('-1 day')->format('Y-m-d');
         $todos     = $modelo->delEnfermero($usuarioId, $diaPrevio, $hasta);
 
-        $porDia   = [];   // turnos agrupados por el día en que empiezan
-        $salidas  = [];   // [fecha] => turno nocturno que termina ese día
-        $minutos  = 0;
-        $cantidad = 0;
+        $porDia       = [];
+        $salidas      = [];
+        $minutos      = 0;
+        $minutosExtra = 0;
+        $cantidad     = 0;
         foreach ($todos as $t) {
             if ($t->terminaAlDiaSiguiente()) {
                 $salidas[substr((string) $t->fin, 0, 10)] = $t;
             }
             if ((string) $t->fecha < $desde) {
-                continue; // solo servía para la nota de salida
+                continue;
             }
             $porDia[(string) $t->fecha][] = $t;
             $minutos += (int) $t->duracion_minutos;
+            $minutosExtra += (int) ($t->minutos_extra ?? 0);
             $cantidad++;
         }
 
-        // En la semana se muestran los 7 días; en el mes, solo los días con turno.
         $dias = [];
         if ($vista === 'semana') {
             for ($i = 0; $i < 7; $i++) {
@@ -83,7 +87,6 @@ class Cronograma extends BaseController
             $dias = array_keys($porDia);
         }
 
-        // Resumen "Hoy / Mañana" (independiente del período elegido) y el turno en curso si empezó ayer.
         $cercanos  = $modelo->delEnfermero($usuarioId, date('Y-m-d', strtotime('-1 day')), $manana);
         $enCurso   = null;
         $turnosHoy = [];
@@ -98,7 +101,6 @@ class Cronograma extends BaseController
                 $turnosMan[] = $t;
             }
         }
-        // Si no hay nada hoy ni mañana, se muestra el siguiente turno programado.
         $siguienteTurno = ($turnosHoy === [] && $turnosMan === []) ? $modelo->siguienteProgramado($usuarioId, $ahora) : null;
 
         return view('cronograma/index', [
@@ -114,19 +116,16 @@ class Cronograma extends BaseController
             'manana'         => $manana,
             'ahora'          => $ahora,
             'dias'           => $dias,
+            'semanas'        => $semanas,
             'porDia'         => $porDia,
             'salidas'        => $salidas,
             'cantidad'       => $cantidad,
             'minutos'        => $minutos,
+            'minutosExtra'   => $minutosExtra,
             'enCurso'        => $enCurso,
             'turnosHoy'      => $turnosHoy,
             'turnosManana'   => $turnosMan,
             'siguienteTurno' => $siguienteTurno,
         ]);
-    }
-
-    private static function nombreMes(int $mes): string
-    {
-        return ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][$mes - 1];
     }
 }

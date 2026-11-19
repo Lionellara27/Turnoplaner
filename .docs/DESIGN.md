@@ -19,24 +19,38 @@ Este documento define las reglas de diseño para generar interfaces web.
 - **Framework CSS:** Usar **Bootstrap 5** en toda la interfaz (grillas, componentes, utilidades y espaciado), no solo en formularios. No mezclar otros frameworks CSS.
 - **Sin estilos inline:** los colores se aplican con las clases del proyecto (`.tp-card-header`, `.btn-tp`, `.alerta--*`) definidas en `public/css/app.css`, nunca con `style="..."`.
   - **Excepciones (solo datos, nunca estética):** el ancho de las barras `.progress-bar` (`style="width: N%"`, como lo exige Bootstrap) y el color que elige el administrador para un tipo de turno. Se pasa como `style="--color-turno: …; --color-turno-texto: …"` (solo esas dos variables CSS, nunca propiedades directas), con el valor saneado por `TipoTurno::getColor()` y escapado con `esc(…, 'attr')`. Lo usan `tipos_turno/_etiqueta.php`, `planificador/_celda.php` y `cronograma/_turno.php`. Ver 4.7.
+- **Sin JavaScript inline:** nada de `<script>` con código ni `onclick` en las vistas. Todo el comportamiento vive en `public/js/app.js` (se carga en el `<head>` del layout) y se engancha por atributos `data-*`. Los datos que necesita el JS viajan en `<script type="application/json" id="…">` (con `json_encode(…, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)`) o en `data-*`.
+- **Texto que arma el JS:** siempre con `textContent` / `createElement` / `setAttribute`, **nunca `innerHTML` con datos** (nombres, sectores, motivos): evita inyección de HTML.
 
-## 2. Identidad Visual y Colores (TurnoPlaner)
+## 2. Identidad Visual y Colores (TurnoPlaner) - paleta "Sage & Pine"
 
-Usar los colores corporativos definidos en las variables CSS del proyecto (`public/css/app.css`):
+Paleta adoptada por el grupo en noviembre de 2026 (verde salvia y pino). Los colores se usan **siempre por su variable CSS** (`public/css/app.css`, sección 1); un hex suelto en una vista o en una regla nueva es un error de revisión. Contrastes medidos con la fórmula WCAG 2.1.
 
-- **Primary (`--color-primario`):** `#43ab92` (Verde Esmeralda Clínico) - **Acento**: borde inferior de la barra y de los encabezados de tarjeta, íconos, detalles y texto grande. **Nunca como fondo con texto blanco ni como color de texto o de links** (contraste 2.8:1, no cumple WCAG AA).
-- **Primary Dark (`--color-primario-oscuro`):** `#307f6d` - Fondo de la barra, de los encabezados de tarjeta y del botón principal (texto blanco, 4.8:1). Color de los links y del contorno de foco sobre superficies claras.
-- **Primary Hover (`--color-primario-hover`):** `#266657` - `:hover` y `:active` del botón principal; links sobre el fondo general `#f3f6f8`.
-- **Primary Soft (`--color-primario-suave`):** `#e6f4f0` - Fondos de realce (tarjeta de credenciales temporales).
-- **Background (`--color-fondo`):** `#f3f6f8` - Fondo general de la app.
-- **Surface:** `#ffffff` - Fondo de tarjetas y modales con sombra suave (`.shadow-sm`).
-- **Text:** `#1e2a32` (texto principal). Para texto secundario usar la utilidad de Bootstrap `.text-body-secondary` (no `.text-secondary`, que baja de 4.5:1 sobre fondos grises o filas con hover).
-- **Success / Ok:** `#2e7d32` / `#e8f5e9` - Alertas de confirmación y estados completados.
-- **Error / Danger:** `#c62828` / `#ffebee` - Alertas de error y validación.
-- **Info:** `#1f5f8b` / `#e7f1f8` - Avisos neutros (por ejemplo, "No había cambios para guardar").
-- **Aviso:** `#8a5a00` / `#fff4d6` (5.4:1) - Notas fijas dentro de una vista, como "Este sector está dado de baja" (`.alerta--aviso` con `role="note"`). No usar `alert-*` de Bootstrap, que no siguen la paleta.
+| Token | Hex | Uso | Contraste |
+| :--- | :--- | :--- | :--- |
+| `--color-primario` | `#2d6855` | Acento: borde inferior de la barra y de los encabezados, íconos, detalles | blanco encima 6.52:1 |
+| `--color-primario-oscuro` | `#1b4d3e` | Fondo de la barra, encabezados de tarjeta, botón principal (`.btn-tp`), links y contorno de foco | blanco encima 9.64:1; como link sobre `--color-fondo` 9.2:1 |
+| `--color-primario-hover` | `#13392e` | `:hover`/`:active` del botón principal y texto del ítem activo del menú | sobre `--color-primario-suave` 10.75:1 |
+| `--color-primario-suave` | `#e2efe9` | Fondos de realce (ítem activo, resumen Hoy/Mañana, credenciales) | - |
+| `--color-fondo` | `#f8faf9` | Fondo general de la app | - |
+| `--color-blanco` | `#ffffff` | Tarjetas y modales (con `.shadow-sm`) | - |
+| `--color-texto` | `#1a2420` | Texto principal | sobre `--color-fondo` 15.21:1 |
+| `--color-texto-suave` | `#52635b` | Texto secundario (equivale a `.text-body-secondary`) | sobre blanco 6.37:1; sobre `--color-fondo` 6.08:1 |
+| `--color-borde` / `--color-borde-suave` | `#cbd6d0` / `#e2e8e4` | Bordes de tarjetas, tablas y separadores | - |
+| `--color-borde-fuerte` | `#6b7c74` | Borde que identifica un control (círculo de selección, opción deshabilitada) | 4.41:1 sobre blanco (WCAG 1.4.11 pide 3:1) |
+| `--color-fondo-suave` | `#f1f5f3` | Cabeceras de tabla, etiquetas de turno, encabezados de modal | texto 14.5:1; texto suave 5.80:1 |
+| `--color-fondo-pasado` | `#e4e9e6` | Días ya pasados en calendarios | texto suave 5.19:1 |
+| `--color-fondo-fuera` | `#f4f7f5` | Días de otro mes y opciones deshabilitadas | texto suave 5.91:1 |
+| `--color-ok` / `--color-ok-fondo` | `#155e44` / `#e8f6f0` | Confirmaciones, "Cubierto", "En curso" | 6.95:1 |
+| `--color-aviso` / `--color-aviso-fondo` | `#8f5e05` / `#fef7e8` | `.alerta--aviso`, "Faltan", "Hora extra" | 5.22:1 |
+| `--color-error` / `--color-error-fondo` | `#a42626` / `#fdf0f0` | Errores, validación, "Sin cubrir" | 6.55:1 |
+| `--color-info` / `--color-info-fondo` | `#1f5f8b` / `#e7f1f8` | Avisos neutros, "Programado", "Asignado actualmente" | 5.98:1 |
 
-**Regla de contraste:** sobre fondos verdes el texto va en **blanco pleno**. La jerarquía se marca con tamaño o peso, no con opacidad: `.text-white-50` está prohibido.
+- **Tipografía** (Google Fonts, cargadas en `layouts/main.php` con `display=swap` y fuentes del sistema de respaldo): **Instrument Sans** para el texto y **Wix Madefor Display** para títulos (`h1`-`h5`, marca). Son la única dependencia externa de estilo, además de Bootstrap e íconos.
+- **Mensajes:** `.alerta--ok`, `.alerta--info`, `.alerta--error` y `.alerta--aviso` (ver 4.3). No usar `alert-*` de Bootstrap, que no siguen la paleta.
+- **No pisar Bootstrap en todo el sitio:** nada de reglas globales sobre `.table-primary`, `.text-primary`, `.bg-primary-subtle`, `.table-responsive`, etc. Si una pantalla necesita otro aspecto, se crea una clase propia (`.tp-…`). En tablas, el fondo de una celda se cambia con la variable `--bs-table-bg` (Bootstrap pinta las celdas con ella y taparía un `background` común).
+
+**Regla de contraste:** sobre fondos verdes el texto va en **blanco pleno**. La jerarquía se marca con tamaño o peso, nunca con opacidad: `.text-white-50`, `opacity-*` y `opacity:` en textos, chips o celdas están prohibidos (bajan el contraste a 2.2-3.7:1).
 
 ## 3. Manejo de Marcas e Imágenes (Logo)
 
@@ -165,12 +179,13 @@ El layout (`app/Views/layouts/main.php`) arma la navegación; **las vistas no ag
 - **Ítem activo:** fondo `--color-primario-suave`, texto `--color-primario-hover` (5.9:1), peso semibold y borde izquierdo de 3 px en `--color-primario`. Además lleva `aria-current="page"`.
 - **Por rol:** el menú muestra solo las opciones del rol (Administrador: Gestión; Enfermero/a: Mis turnos; los dos con Mi perfil abajo). Nunca mostrar un ítem que lleva a "acceso denegado".
 - **Agregar una sección nueva** (por ejemplo HU-09 Sectores): sumar `['admin/sectores', 'bi-hospital', 'Sectores']` al arreglo `$menu` del layout, en el grupo que corresponda.
-- **Contenido junto al menú:** el espacio útil se achica 240 px. Las tablas anchas se muestran como tabla recién desde 1200 px (`d-xl-block`) y como tarjetas debajo de ese ancho (ver skill de frontend, sección 6).
+- **Contenido junto al menú:** el espacio útil se achica 240 px. Las tablas anchas se muestran como tabla recién desde 1200 px (`d-xl-block`) y como tarjetas debajo de ese ancho (ver skill de frontend, sección 6). Los calendarios mensuales: el del Planificador desde 1400 px (`d-xxl-block`) y los del Panel y Mi cronograma desde 1200 px; debajo, una lista por día. Toda pantalla se revisa en 360 px, tablet y computadora, sin scroll horizontal.
 
 ### 4.7. Etiqueta de Tipo de Turno
 
-- Parcial `app/Views/admin/tipos_turno/_etiqueta.php` (clase `.etiqueta-turno`): fondo con el color del turno y **siempre el nombre encima**, nunca un punto de color solo.
-- **Paleta cerrada** (`TipoTurnoModel::PALETA`); el texto blanco u oscuro lo elige `TipoTurno::colorTexto()` por contraste:
+- Parcial `app/Views/admin/tipos_turno/_etiqueta.php` (clase `.etiqueta-turno`): píldora con fondo `--color-fondo-suave`, texto `--color-texto` (14.5:1), borde `--color-borde` y **borde izquierdo de 4 px con el color del turno** (`--color-turno`). Siempre el nombre escrito: el color solo ayuda a reconocerlo, nunca es la única señal.
+- **Cada tipo de turno pertenece a un sector** (`tipos_turno.sector_id`): el mismo nombre ("Mañana") puede existir en varios sectores con horarios distintos (por ejemplo, UTI trabaja en turnos de 6 h). El formulario pide el sector primero y el listado se puede filtrar por sector.
+- **Paleta cerrada** (`TipoTurnoModel::PALETA`). El color pleno con texto encima se usa en el selector de color (`.opcion-color`); el texto blanco u oscuro lo elige `TipoTurno::colorTexto()` por contraste:
 
 | Color | Hex | Texto | Contraste |
 | :--- | :--- | :--- | :--- |
@@ -192,56 +207,82 @@ Clases `.cobertura--ok`, `.cobertura--parcial`, `.cobertura--vacio`. Siempre íc
 
 | Estado | Texto visible | Texto para lector de pantalla | Ícono | Colores | Contraste |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| Cubierto | "Cubierto n/m" | "Cubierto: n de m enfermeros mínimos." | `bi-check-circle-fill` | `#2e7d32` / `#e8f5e9` | 4.56:1 |
-| Faltan | "Faltan k · n/m" | "Faltan k enfermeros: n de m asignados." | `bi-exclamation-triangle-fill` | `#8a5a00` / `#fff4d6` | 5.41:1 |
-| Sin cubrir | "Sin cubrir 0/m" | "Sin cubrir: 0 de m enfermeros mínimos." | `bi-x-circle-fill` | `#c62828` / `#ffebee` | 4.92:1 |
+| Cubierto | "Cubierto n/m" | "Cubierto: n de m enfermeros mínimos." | `bi-check-circle-fill` | `--color-ok` / `--color-ok-fondo` | 6.95:1 |
+| Faltan | "Faltan k · n/m" | "Faltan k enfermeros: n de m asignados." | `bi-exclamation-triangle-fill` | `--color-aviso` / `--color-aviso-fondo` | 5.22:1 |
+| Sin cubrir | "Sin cubrir 0/m" | "Sin cubrir: 0 de m enfermeros mínimos." | `bi-x-circle-fill` | `--color-error` / `--color-error-fondo` | 6.55:1 |
+
+- Un solo parcial dibuja el chip: `app/Views/admin/planificador/_cobertura.php` (lo usan el Planificador y el Panel). En celdas angostas el chip puede ocupar dos renglones; nunca se recorta el texto.
 
 - Solo cuentan los enfermeros/as **activos**; uno dado de baja se muestra con el badge "De baja · no cuenta".
 - **Prohibido bajar la opacidad** de chips, celdas o textos (con `opacity: .75` el contraste cae a 2.9–3.5:1).
 
-### 4.9. Cuadrícula Semanal (Planificador)
+### 4.9. Planificador: calendario mensual por sector (HU-14)
 
-- **Desde 1400 px** (`d-xxl-block`): tabla con filas = tipos de turno (`th scope="row"` con etiqueta y horario) y columnas = días (`th scope="col"`, "lunes" + dd/mm), con `caption` oculto (sector y semana). Debajo de 1400 px, un bloque por día.
-- **Hoy:** fondo `--color-primario-suave`, texto "hoy", `aria-current="date"`; los links de esa columna van en `--color-primario-hover` (5.9:1).
-- **Día pasado:** fondo `--color-fondo` y la palabra "pasado"; en celular se pliega con `<details>`. Un turno que ya terminó muestra un candado ("Terminado") y no se puede modificar.
-- **Cada nombre** es un link a reasignar o eliminar, con texto oculto "reasignar o eliminar su turno X del día Y".
-- **Botón de asignar:** grande (`btn-outline-secondary w-100`) donde falta gente; compacto ("+ Agregar", `btn-link`) donde ya está cubierto. Abre el **modal** `#modalAsignar` con el turno precargado y envía por AJAX (mismas validaciones de HU-13; los errores se muestran dentro del modal).
-- **Quitar:** al lado de cada nombre, ícono `bi-x-circle` (con texto oculto "Quitar a … del turno …") que abre el modal de confirmación `#modalQuitar`.
-- **Mejora progresiva:** sin JavaScript, "Asignar" es un link al formulario completo y cada nombre lleva a "Reasignar turno", donde también se puede eliminar.
-- **Resumen de horas:** debajo de la cuadrícula, una tarjeta por enfermero/a activo con "N h de M h", barra de progreso y "Le quedan X h libres" o "Sin horas libres esta semana" (suma de todos los sectores).
-- **Celular:** link "Ir a hoy" y navegación de semanas en un `btn-group`.
+- **Encabezado:** h1 "Planificador" (igual que el menú) y subtítulo "Sector · Mes · Dotación mínima". La acción principal "Asignar turno" va como `btn-light` sobre el encabezado verde.
+- **Sector:** botones `.selector-sector`; el activo lleva `aria-current="page"`, borde y tilde (no solo color). Mes anterior/siguiente en `.nav-mes`, sin `btn-sm`.
+- **Desde 1400 px** (`d-xxl-block`): calendario `.tp-calendario` de lunes a domingo (`th scope="col"`, `caption` oculto con sector y mes). Cada celda (`.tp-celda-dia`) muestra los tipos de turno del sector con su chip de cobertura (4.8) y un "+" de 44×44 px (`.tp-shift-row__btn-add`) con texto oculto "Asignar turno X el día N". El día se abre con un botón propio **"Ver día N"** (`.tp-celda-dia__ver`): la celda nunca es un botón ni tiene controles anidados.
+- **Debajo de 1400 px:** lista por día (`.dia-lista`, grilla de 1/2/3 columnas) con los mismos datos; en el mes actual los días pasados van plegados (`.plan-dias-anteriores`, `<details>`).
+- **Hoy:** marco de 2 px en `--color-primario-oscuro`, la marca `.badge-hoy` y `aria-current="date"`. **Días pasados:** fondo `--color-fondo-pasado` (sin opacidad). **Otro mes:** `--color-fondo-fuera`. Fines de semana: `.cal-mes__finde`.
+- **Panel lateral del día** (`.tp-drawer`, offcanvas): por cada turno (`.tp-turno-bloque`), el personal asignado (`.tp-enfermero-fila`) con botones de ícono `.btn-icono` de 44 px y nombre accesible completo ("Quitar a Pérez, Juan del turno Tarde del día jueves 19/11/2026"), la marca "HE" si es hora extra (4.12) y "Asignar" para ese turno.
+- **Modales:** `#modalAsignar` (asignar o reasignar por AJAX, con el selector de 4.10) y `#modalQuitar` (confirmación). Al cerrar, el foco vuelve a un control visible (el "Ver día" que abrió el panel). Los errores del servidor (422) se muestran dentro del modal y el botón recupera su texto e ícono.
+- **CSRF:** cada respuesta AJAX trae el token nuevo (`csrf`) y `app.js` lo copia en **todos** los `input[name=csrf_test_name]` de la página; el token se regenera en cada envío (`Config\Security::$regenerate = true`).
+- **Mejora progresiva:** sin JavaScript, el "+" es un link al formulario completo de asignación (que funciona sin JS, ver 4.10) y desde el formulario de reasignar se puede eliminar. El panel lateral es solo con JS.
+- **Carga horaria del personal** (`.tp-carga-item`): por enfermero/a, **horas de la semana actual contra su tope semanal** ("32 h de 36 h esta semana") con barra de progreso (`.carga-semana--ok/alto/completo`) y "Le quedan X h", más el total del mes y sus horas extras. Filtros con `form-label` visible (buscar, especialidad, carga, orden) y botón "Ver ficha" que abre `#modalDetalleEnfermero`.
+- **Ventana de planificación:** se asigna desde hoy hasta hoy + 2 meses (`AsignacionModel::fechaMaximaHabilitada()`); el aviso con la fecha límite se muestra debajo del calendario.
 
-### 4.10. Selects de Personas
+### 4.10. Selector de enfermero/a (formulario de asignación y modal)
 
-Ordenados por apellido. Cuando ya se sabe el turno y la fecha, cada opción muestra las horas de la semana ("32 h de 36 h esta semana") y las que no pueden tomar el turno van `disabled` con el motivo. Con más de 8 opciones, un buscador arriba (`data-filtrar-select`).
+- **Radios reales, no `<select>` ni `div role="radio"`:** parciales `planificador/_selector_enfermeros.php` y `_opcion_enfermero.php`. Cada opción es `<input type="radio" class="btn-check" name="usuario_id" required>` + `<label>` como tarjeta (`.tp-enfermero-opcion`), dentro de un `<fieldset>` con `<legend>` visible "Enfermero/a *". Así funciona sin JS, con flechas del teclado, `disabled` y validación nativa.
+- **Cada opción muestra:** nombre (`aria-labelledby`), especialidad, matrícula, **horas de la semana contra su tope** ("32 h de 36 h esta semana") y el estado de disponibilidad (`aria-describedby`):
+
+| Estado | Clase | Significado | Colores | Contraste |
+| :--- | :--- | :--- | :--- | :--- |
+| Disponible | `.estado-disponibilidad--disponible` | Libre y dentro de su carga semanal | `--color-ok` / `--color-ok-fondo` | 6.95:1 |
+| Hora extra | `.estado-disponibilidad--extra` | Libre, pero ya cumplió su carga: el turno se registra como hora extra | `--color-aviso` / `--color-aviso-fondo` | 5.22:1 |
+| No disponible | `.estado-disponibilidad--no-disponible` | Turno superpuesto o sin carga horaria: va `disabled` con el **motivo escrito** | texto suave sobre `--color-fondo-fuera`, borde punteado `--color-borde-fuerte` | 5.91:1 |
+| Asignado actualmente | `.estado-disponibilidad--actual` | Al reasignar, la persona que ya tiene el turno | `--color-info` / `--color-info-fondo` | 5.98:1 |
+
+- **Orden** (lo decide el servidor, `AsignacionModel::evaluarDisponibilidad()`): disponibles con menos horas primero, luego hora extra, al final no disponibles.
+- **Filtros** (`.selector-enfermeros`, componente `FiltroLista` de `app.js`): buscador por nombre o matrícula (Enter no envía el formulario), especialidad, "Con horas disponibles" y orden; todos con `form-label` visible y 44 px de alto. El contador de resultados tiene `role="status"`. Si el filtro oculta a la persona elegida se avisa "Seleccionado: X (oculto por el filtro)".
+- **Modal del Planificador:** pide la disponibilidad real por `GET admin/asignaciones/disponibilidad?sector_id&tipo_turno_id&fecha[&excluir]` (JSON, solo AJAX) y muestra "Cargando…" o un error con "Reintentar".
+- **El servidor es la barrera:** aunque alguien fuerce un id por POST, `validarReglas` rechaza superposiciones, inactivos y turnos de otro sector.
+- **360 px:** la tarjeta se apila en columna y los badges hacen salto de línea (`min-width: 0` en el nombre).
 
 ### 4.11. Mi Cronograma (portal del enfermero/a, HU-17)
 
 - **Arriba, siempre:** tarjeta `.proximo-turno` con dos columnas, **Hoy** y **Mañana** (fecha larga). Cada una muestra sus turnos (etiqueta, horario y sector, apilados sin "·" sueltos) o "Sin turno asignado". Si no hay nada ni hoy ni mañana, agrega "Próximo turno:" con el siguiente programado; si una Noche empezó ayer y sigue, "Turno en curso (empezó ayer)". No depende de la semana o el mes que se esté mirando.
-- **Navegación:** dos `btn-group` (Semana / Mes y Anterior / Esta semana o Este mes / Siguiente), sin `btn-sm` (44 px de alto). El botón activo lleva `aria-current`.
-- **Totales:** "N turnos en este período · X h en total", solo si hay turnos.
+- **Vista inicial: mes.** Desde 1200 px, calendario mensual `.tp-calendario` (lunes a domingo) con clases `.tp-calendario__dia` (`--hoy`, `--fuera`), `__numero`, `__nota`, `__turno` y `__sector`; cada turno muestra etiqueta, sector, horario, **estado** y la marca "HE". Debajo de 1200 px, la agenda por día de `_dias.php`.
+- **Navegación:** dos `btn-group` (Mes / Semana y Anterior / Este mes o Esta semana / Siguiente), sin `btn-sm` (44 px de alto). El botón activo lleva `aria-current`. En celular, Anterior y Siguiente quedan como flechas con texto oculto.
+- **Totales:** "N turnos en este período · X h en total" y, si hay, "HE N h de horas extras"; solo si hay turnos.
 - **Estado vacío** (semana o mes): ícono `bi-calendar-x`, "No tiene turnos asignados en …" y, si no es el período actual, el botón "Ir a la semana actual" / "Ir al mes actual".
 - **Lista de días** (parcial `cronograma/_dias.php`): tabla desde 1200 px (`d-xl-block`, borde en el contenedor) y agenda por día debajo (`d-xl-none`). La semana muestra los 7 días; los días sin turno dicen "Sin turno asignado" (no "Franco": que no haya turno no significa que sea franco). El mes muestra solo los días con turno y, en el mes actual, los días ya pasados van plegados en un `<details>` ("Ver N días anteriores de este mes").
-- **Hoy:** fila/bloque con fondo `--color-primario-suave`, `aria-current="date"` y la marca `.badge-hoy` (blanco sobre `#307f6d`, 4.8:1).
+- **Hoy:** fila/bloque con fondo `--color-primario-suave` (o marco de 2 px en el calendario), `aria-current="date"` y la marca `.badge-hoy` (blanco sobre `--color-primario-oscuro`, 9.64:1).
 - **Noche:** el horario muestra el día de salida, "22:00 → 06:00 del mié 11/11"; el día siguiente lleva la nota "Sale de Noche a las 06:00" (ícono `bi-moon-stars`).
-- **Lectores de pantalla:** en la agenda, cada turno tiene una frase completa oculta ("Mañana en UTI (área crítica), de 06:00 a 14:00, programado.") y las piezas visuales van `aria-hidden`.
+- **Lectores de pantalla:** en la agenda, cada turno tiene una frase completa oculta ("Mañana en UTI (área crítica), de 06:00 a 14:00, programado, registrado como hora extra.") y las piezas visuales van `aria-hidden`.
 
 | Estado | Clase | Ícono | Colores | Contraste |
 | :--- | :--- | :--- | :--- | :--- |
 | Programado | `.estado-turno--programado` | `bi-calendar-check` | `#1f5f8b` / `#e7f1f8` | 5.98:1 |
-| En curso | `.estado-turno--en-curso` | `bi-play-circle-fill` | `#2e7d32` / `#e8f5e9` | 4.56:1 |
-| Finalizado | `.estado-turno--finalizado` | `bi-check2-circle` | `#5c6b75` / `#eceff1` | 4.77:1 |
+| En curso | `.estado-turno--en-curso` | `bi-play-circle-fill` | `--color-ok` / `--color-ok-fondo` | 6.95:1 |
+| Finalizado | `.estado-turno--finalizado` | `bi-check2-circle` | `--color-texto-suave` / `#eceff1` | 5.52:1 |
 
 "Próximo" se reserva para la tarjeta de arriba; en la lista, un turno que todavía no empezó es "Programado".
+
+### 4.12. Horas extras
+
+- **Regla (HU-13, acordada por el grupo):** superar la carga horaria semanal **no se rechaza**: el turno se guarda y el excedente queda registrado como hora extra (`asignaciones.es_extra` / `minutos_extra`). Se calcula por semana (lunes a domingo), en orden cronológico de inicio, y **se recalcula toda la semana** al crear, reasignar o eliminar un turno (`AsignacionModel::recalcularExtrasSemana()`), así el resultado no depende del orden en que se cargó.
+- **Marca visual:** `.badge-extra` "HE" (`#6d4a00` sobre `#fdf0d5`, 7.07:1) con texto oculto "Hora extra"; nunca solo un `title`. El aviso al asignar dice "(registrado como HORA EXTRA cubierta: N h)".
 
 ## 5. Foco y Accesibilidad
 
 - **Foco visible:** contorno de 2 px en `--color-primario-oscuro` sobre superficies claras y en blanco sobre superficies verdes (barra y encabezados), con `outline-offset: 2px`. Está definido en `app.css`; **prohibido quitarlo**.
 - **Contraste mínimo WCAG AA:** 4.5:1 para texto normal. Ver la tabla de la skill `.agents/skills/ux-ui-expert.md`, sección 6.
-- **Tamaño táctil:** en celular, botones de al menos 44 px.
+- **Tamaño táctil:** botones, links de acción e íconos clicables de al menos 44×44 px (incluye el "+" del calendario y los íconos del panel lateral).
+- **Estados:** siempre ícono + texto (y texto oculto completo cuando el visible es abreviado, como "3/2" o "HE"). Nunca solo color.
 
 ## 6. Tono
 
-- Tratamiento de **usted** en toda la interfaz ("Ingrese", "Revise", "Contacte").
+- Tratamiento de **usted** en toda la interfaz ("Ingrese", "Revise", "Haga clic", "No tiene"); nunca voseo ("Hacé", "tenés").
+- **"Sector"** para los servicios del hospital (UTI, Guardia…), en todas las pantallas y mensajes; no "zona".
 - Términos del hospital, no de la base de datos: "legajo", "dar de baja", "guardia", "pendiente de activación"; nunca "estado = BAJA" ni "registro eliminado".
 - Fechas `dd/mm/aaaa` (helper `fecha_ar()`) y horas en formato 24 h.

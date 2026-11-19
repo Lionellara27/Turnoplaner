@@ -88,27 +88,28 @@ La consigna pide "un nivel estándar de usabilidad, proporcionando las indicacio
 
 1. **Contraste:** texto normal 4.5:1, texto grande o íconos 3:1. Contrastes medidos de la paleta actual de `DESIGN.md`:
 
-| Combinación | Contraste | Resultado |
+| Combinación (paleta "Sage & Pine", noviembre 2026) | Contraste | Resultado |
 | :--- | :--- | :--- |
-| Texto `#1e2a32` sobre fondo `#f3f6f8` | 13.5:1 | Cumple |
-| Texto secundario `#5c6b75` sobre fondo `#f3f6f8` | 5.1:1 | Cumple |
-| Blanco sobre primario oscuro `#307f6d` | 4.8:1 | Cumple |
-| Error `#c62828` sobre `#ffebee` | 4.9:1 | Cumple |
-| Ok `#2e7d32` sobre `#e8f5e9` | 4.6:1 | Cumple |
-| Primario oscuro `#307f6d` sobre blanco (links) | 4.8:1 | Cumple |
-| Info `#1f5f8b` sobre `#e7f1f8` | 6.0:1 | Cumple |
-| Gris `#5c6b75` sobre `#eceff1` (estado "Finalizado") | 4.8:1 | Cumple |
-| Gris `#5c6b75` sobre fila de hoy `#e6f4f0` | 4.9:1 | Cumple |
-| Blanco sobre `#307f6d` (`.badge-hoy`) | 4.8:1 | Cumple |
-| `.text-body-secondary` sobre fila con hover `#f4faf8` | 6.5:1 | Cumple |
-| **Blanco sobre primario `#43ab92`** | **2.8:1** | **No cumple: por eso los fondos con texto usan `#307f6d`** |
-| **Primario `#43ab92` sobre blanco** | **2.8:1** | **No cumple: nunca como color de texto o link** |
-| **Blanco al 85 % (`.text-white-50` o similar) sobre `#307f6d`** | **4.0:1** | **No cumple: sobre verde, blanco pleno** |
-| **`.text-secondary` (`#6c757d`) sobre fila con hover** | **4.0:1** | **No cumple: usar `.text-body-secondary`** |
-| **`#307f6d` sobre fondo general `#f3f6f8`** | **4.4:1** | **No cumple: links siempre sobre blanco** |
-| **`#307f6d` sobre verde suave `#e6f4f0`** (columna de hoy) | **4.2:1** | **No cumple: usar `#266657` (5.9:1)** |
-| Aviso `#8a5a00` sobre `#fff4d6` | 5.4:1 | Cumple |
-| **Cualquier texto con `opacity: .75`** | **2.9 a 3.5:1** | **No cumple: nunca bajar la opacidad para marcar "pasado" o "inactivo"** |
+| Texto `#1a2420` sobre fondo `#f8faf9` | 15.2:1 | Cumple |
+| Texto secundario `#52635b` sobre blanco / sobre fondo `#f8faf9` | 6.4:1 / 6.1:1 | Cumple |
+| Blanco sobre primario oscuro `#1b4d3e` (barra, encabezados, `.btn-tp`, `.badge-hoy`) | 9.6:1 | Cumple |
+| Blanco sobre primario `#2d6855` | 6.5:1 | Cumple |
+| Link `#1b4d3e` sobre blanco / sobre fondo | 9.6:1 / 9.2:1 | Cumple |
+| Hover `#13392e` sobre verde suave `#e2efe9` (ítem activo, sector activo) | 10.8:1 | Cumple |
+| Ok `#155e44` sobre `#e8f6f0` (Cubierto, En curso, Disponible) | 7.0:1 | Cumple |
+| Aviso `#8f5e05` sobre `#fef7e8` (Faltan, Hora extra, `.alerta--aviso`) | 5.2:1 | Cumple |
+| Error `#a42626` sobre `#fdf0f0` | 6.6:1 | Cumple |
+| Info `#1f5f8b` sobre `#e7f1f8` (Programado, Asignado actualmente) | 6.0:1 | Cumple |
+| Texto `#1a2420` sobre `#f1f5f3` (etiqueta de turno, cabeceras) | 14.5:1 | Cumple |
+| Texto secundario sobre día pasado `#e4e9e6` / otro mes `#f4f7f5` | 5.2:1 / 5.9:1 | Cumple |
+| Gris `#52635b` sobre `#eceff1` (estado "Finalizado") | 5.5:1 | Cumple |
+| `.badge-extra` "HE" `#6d4a00` sobre `#fdf0d5` | 7.1:1 | Cumple |
+| Borde de control `#6b7c74` sobre blanco (no texto, WCAG 1.4.11 pide 3:1) | 4.4:1 | Cumple |
+| **Cualquier texto con `opacity` (`opacity-50`, `opacity-75`, `.is-disabled{opacity:.6}`)** | **2.2 a 3.7:1** | **No cumple: nunca bajar la opacidad; usar los fondos `--color-fondo-pasado` / `--color-fondo-fuera`** |
+| **Blanco al 85 % (`.text-white-50` o similar) sobre verde** | **menos de 4.5:1** | **No cumple: sobre verde, blanco pleno** |
+| **`.text-secondary` (`#6c757d`) sobre fondos grises** | **~4.0:1** | **No cumple: usar `.text-body-secondary`** |
+
+   Paleta anterior (hasta 18/11/2026, ya no se usa): `#43ab92` / `#307f6d`. Si aparece en una vista o regla nueva, es un error.
 
    Regla práctica: si una combinación nueva no está en esta tabla, medirla antes de usarla (fórmula de luminancia relativa de WCAG; un script de Python de 10 líneas alcanza).
 
@@ -173,7 +174,22 @@ Errores que la revisión encontró y conviene no repetir:
 - `pattern` con `(` o `-` sin escapar dentro de `[...]` se ignora en navegadores modernos (flag `v`).
 - Logout dentro del menú colapsable: en celular el botón "siempre visible" queda escondido.
 
-## 10. Plantilla de invocación
+## 10. Aprendizajes de la integración de develop (19/11/2026)
+
+Revisión de la rama develop (calendario mensual, horas extras, buscador de enfermeros) antes de pasar a main:
+
+1. **Reglas globales que pisan Bootstrap rompen otras pantallas:** `.card-body .table-responsive{overflow-x:visible}` le sacó el scroll a todas las tablas. Toda regla nueva va con una clase propia (`.tp-…`).
+2. **En tablas de Bootstrap el fondo de celda se cambia con `--bs-table-bg`**; un `background` común queda tapado (días pasados y marco de hoy desaparecían).
+3. **Una celda de calendario no es un botón:** `td role="button"` con un "+" adentro son controles anidados que rompen el teclado. Botón "Ver día N" aparte y "+" de 44 px con texto oculto.
+4. **Selector de personas con radios reales** (`input.btn-check` + `label`), no `div role="radio"` + `select` oculto: el primero funciona sin JS y con teclado gratis.
+5. **`innerHTML` con nombres = inyección de HTML.** `getAttribute()` devuelve el texto ya decodificado; armar con `textContent`.
+6. **Cifras abreviadas ("3/2", "HE") siempre con texto oculto completo**; `title` no lo leen todos los lectores ni se ve en celular.
+7. **Comparar magnitudes iguales:** horas del mes contra un tope semanal confunde; mostrar "N h de M h esta semana".
+8. **Una sola palabra por concepto:** "Sector" (no "zona"), usted (no voseo), y el h1 igual al ítem del menú.
+
+---
+
+## 11. Plantilla de invocación
 
 ```markdown
 Actúa como **UX/UI Expert Agent** para TurnoPlaner.

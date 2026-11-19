@@ -15,21 +15,13 @@ use App\Models\UsuarioModel;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
-use DateTimeImmutable;
 
 /**
- * HU-13: asignación individual de turnos con control de superposición y de carga horaria semanal.
- * Permite reasignar (editar) o eliminar turnos que todavía no terminaron.
- *
- * Responde de dos formas con las mismas validaciones:
- * - formulario común (redirige con mensajes), y
- * - AJAX desde el modal de la cuadrícula (HU-14): devuelve JSON con los errores o el resultado.
+ * HU-13: asignación mensual de turnos con control de superposición, horas extras con prioridad
+ * y ventana habilitada con 2 meses de anticipación.
  */
 class Asignaciones extends BaseController
 {
-    /** Hasta cuántos días hacia adelante se pueden asignar turnos. */
-    private const DIAS_MAXIMOS = 365;
-
     protected AsignacionModel $modelo;
 
     public function __construct()
@@ -72,7 +64,15 @@ class Asignaciones extends BaseController
             return $this->fallar($errores);
         }
 
-        return $this->exito($sector, $fecha, "Turno asignado: {$enfermero->getNombreCompleto()} · {$sector->nombre} · {$tipo->nombre} ({$tipo->rangoTexto()}) el " . fecha_larga($fecha) . '.');
+        $notaExtra = $asignacion->esExtra()
+            ? ' (registrado como HORA EXTRA cubierta: ' . AsignacionModel::horasTexto((int) $asignacion->minutos_extra) . ')'
+            : '';
+
+        return $this->exito(
+            $sector,
+            $fecha,
+            "Turno asignado: {$enfermero->getNombreCompleto()} · {$sector->nombre} · {$tipo->nombre} ({$tipo->rangoTexto()}) el " . fecha_larga($fecha) . ".{$notaExtra}"
+        );
     }
 
     /** Formulario para reasignar un turno que todavía no terminó. */
@@ -89,7 +89,7 @@ class Asignaciones extends BaseController
         ]);
     }
 
-    /** Guarda la reasignación (cambio de enfermero/a, sector, turno o fecha). */
+    /** Guarda la reasignación. */
     public function actualizar(int $id): ResponseInterface
     {
         $asignacion = $this->buscarFutura($id);
@@ -97,7 +97,9 @@ class Asignaciones extends BaseController
             return $asignacion;
         }
 
-        $resultado = $this->validarYArmar();
+        // La ventana de 2 meses se controla solo si el turno se mueve a otra fecha: cambiarle el
+        // enfermero/a o la franja a un turno ya cargado no debe rechazarse por esa ventana.
+        $resultado = $this->validarYArmar((string) $asignacion->fecha);
         if (isset($resultado['errores'])) {
             return $this->fallar($resultado['errores']);
         }
@@ -115,10 +117,18 @@ class Asignaciones extends BaseController
             return $this->fallar($errores);
         }
 
-        return $this->exito($sector, $fecha, "Turno reasignado: {$enfermero->getNombreCompleto()} · {$sector->nombre} · {$tipo->nombre} el " . fecha_larga($fecha) . '.');
+        $notaExtra = $asignacion->esExtra()
+            ? ' (registrado como HORA EXTRA cubierta: ' . AsignacionModel::horasTexto((int) $asignacion->minutos_extra) . ')'
+            : '';
+
+        return $this->exito(
+            $sector,
+            $fecha,
+            "Turno reasignado: {$enfermero->getNombreCompleto()} · {$sector->nombre} · {$tipo->nombre} el " . fecha_larga($fecha) . ".{$notaExtra}"
+        );
     }
 
-    /** Elimina (baja lógica) un turno que todavía no terminó (formulario o modal AJAX de la cuadrícula). */
+    /** Elimina (baja lógica) un turno que todavía no terminó. */
     public function eliminar(int $id): ResponseInterface
     {
         $asignacion = $this->buscarFutura($id);
@@ -129,7 +139,11 @@ class Asignaciones extends BaseController
         }
 
         $sector = (new SectorModel())->withDeleted()->find((int) $asignacion->sector_id);
-        $this->modelo->delete($id);
+
+        // Baja lógica + recálculo de las horas extras de esa semana, en una sola transacción (modelo).
+        if (! $this->modelo->eliminarConRecalculo($asignacion)) {
+            return $this->fallar(['general' => 'No se pudo eliminar el turno. Intente nuevamente.']);
+        }
 
         $mensaje = 'Turno eliminado del ' . fecha_larga((string) $asignacion->fecha)
             . ($sector instanceof Sector ? " en {$sector->nombre}." : '.');
@@ -142,18 +156,122 @@ class Asignaciones extends BaseController
 
         $destino = base_url('admin/planificador') . '?' . http_build_query([
             'sector' => (int) $asignacion->sector_id,
-            'semana' => AsignacionModel::lunesDe((string) $asignacion->fecha),
+            'mes'    => substr((string) $asignacion->fecha, 0, 7),
         ]);
 
         return redirect()->to($destino)->with('success', $mensaje);
     }
 
     /**
+     * Disponibilidad de enfermeros/as para el modal del planificador (HU-13 / HU-14). Solo AJAX o JSON.
+     *
+     * GET admin/asignaciones/disponibilidad?sector_id=N&tipo_turno_id=N&fecha=YYYY-MM-DD[&excluir=ID]
+     *   - sector_id:     sector activo.
+     *   - tipo_turno_id: tipo de turno activo que pertenece a ese sector.
+     *   - fecha:         día en que empieza el turno.
+     *   - excluir:       (opcional) id del turno que se está reasignando: no cuenta ni para las horas
+     *                    de la semana ni para la superposición.
+     *
+     * 200: {"ok": true, "enfermeros": [{
+     *          "id": int, "nombre": "Apellido, Nombre", "especialidad": string, "matricula": string,
+     *          "minutos_semana": int, "maximo_minutos": int, "horas_texto": "32 h de 36 h esta semana",
+     *          "estado": "disponible" | "extra" | "no_disponible", "motivo": string | null
+     *      }, ...]}
+     *      Mismo orden que AsignacionModel::evaluarDisponibilidad(): primero los disponibles (menos horas
+     *      primero), después los que entrarían como hora extra y al final los no disponibles con su motivo.
+     * 422: {"ok": false, "errores": {"campo": "mensaje", ...}} si algún parámetro es inválido.
+     * 404: si se abre como página normal (no es una pantalla, solo datos para el modal).
+     *
+     * Es GET y no modifica nada, por eso no consume ni regenera el token CSRF.
+     */
+    public function disponibilidad(): ResponseInterface
+    {
+        if (! $this->request->isAJAX() && ! str_contains($this->request->getHeaderLine('Accept'), 'application/json')) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $datos = [
+            'sector_id'     => $this->textoGet('sector_id'),
+            'tipo_turno_id' => $this->textoGet('tipo_turno_id'),
+            'fecha'         => $this->textoGet('fecha'),
+            'excluir'       => $this->textoGet('excluir'),
+        ];
+        $reglas = [
+            'sector_id' => [
+                'rules'  => 'required|is_natural_no_zero',
+                'errors' => ['required' => 'Elija el sector.', 'is_natural_no_zero' => 'Elija el sector.'],
+            ],
+            'tipo_turno_id' => [
+                'rules'  => 'required|is_natural_no_zero',
+                'errors' => ['required' => 'Elija el turno.', 'is_natural_no_zero' => 'Elija el turno.'],
+            ],
+            'fecha' => [
+                'rules'  => 'required|valid_date[Y-m-d]',
+                'errors' => ['required' => 'Elija la fecha.', 'valid_date' => 'Ingrese una fecha válida (AAAA-MM-DD).'],
+            ],
+            'excluir' => [
+                'rules'  => 'permit_empty|is_natural_no_zero',
+                'errors' => ['is_natural_no_zero' => 'El turno a excluir no es válido.'],
+            ],
+        ];
+
+        if (! $this->validateData($datos, $reglas)) {
+            return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'errores' => $this->validator->getErrors()]);
+        }
+        if ($this->fechaValida($datos['fecha']) === null) {
+            return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'errores' => ['fecha' => 'Ingrese una fecha válida (AAAA-MM-DD).']]);
+        }
+
+        $sector = (new SectorModel())->find((int) $datos['sector_id']);
+        $tipo   = (new TipoTurnoModel())->find((int) $datos['tipo_turno_id']);
+
+        $errores = [];
+        if (! $sector instanceof Sector) {
+            $errores['sector_id'] = 'El sector elegido no está activo.';
+        }
+        if (! $tipo instanceof TipoTurno) {
+            $errores['tipo_turno_id'] = 'El turno elegido no está activo.';
+        } elseif ($sector instanceof Sector && (int) $tipo->sector_id !== (int) $sector->id) {
+            $errores['tipo_turno_id'] = "El turno «{$tipo->nombre}» no corresponde al sector «{$sector->nombre}».";
+        }
+        if ($errores !== []) {
+            return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'errores' => $errores]);
+        }
+
+        $excluir = $datos['excluir'] !== '' ? (int) $datos['excluir'] : null;
+        $filas   = $this->modelo->evaluarDisponibilidad((new UsuarioModel())->enfermerosActivos(), $tipo, $datos['fecha'], $excluir);
+
+        $enfermeros = [];
+        foreach ($filas as $fila) {
+            $e      = $fila['enfermero'];
+            $maximo = $fila['maximo_minutos'];
+
+            $enfermeros[] = [
+                'id'             => (int) $e->id,
+                'nombre'         => "{$e->apellido}, {$e->nombre}",
+                'especialidad'   => (string) ($e->especialidad ?? ''),
+                'matricula'      => (string) ($e->matricula ?? ''),
+                'minutos_semana' => $fila['minutos_semana'],
+                'maximo_minutos' => $maximo,
+                'horas_texto'    => AsignacionModel::horasTexto($fila['minutos_semana'])
+                    . ($maximo > 0 ? ' de ' . AsignacionModel::horasTexto($maximo) : '') . ' esta semana',
+                'estado'         => $fila['estado'],
+                'motivo'         => $fila['motivo'],
+            ];
+        }
+
+        return $this->response->setJSON(['ok' => true, 'enfermeros' => $enfermeros]);
+    }
+
+    /**
      * Valida el formulario y busca enfermero/a, sector y tipo de turno activos.
+     *
+     * @param string|null $fechaActual fecha que ya tenía el turno (reasignación): si no cambia, no se
+     *                                 aplica el tope de la ventana habilitada (fechaMaximaHabilitada).
      *
      * @return array{0: Usuario, 1: Sector, 2: TipoTurno, 3: string}|array{errores: array<string, string>}
      */
-    private function validarYArmar(): array
+    private function validarYArmar(?string $fechaActual = null): array
     {
         $datos  = $this->datosRecortados();
         $reglas = [
@@ -179,7 +297,6 @@ class Asignaciones extends BaseController
             return ['errores' => $this->validator->getErrors()];
         }
 
-        // Formato exacto AAAA-MM-DD: "2026-11-4" pasaría un valid_date y compararía mal como texto.
         $fecha = $this->fechaValida((string) $datos['fecha']);
         if ($fecha === null) {
             return ['errores' => ['fecha' => 'Ingrese una fecha válida.']];
@@ -187,8 +304,10 @@ class Asignaciones extends BaseController
         if ($fecha < date('Y-m-d')) {
             return ['errores' => ['fecha' => 'Solo se pueden asignar turnos de hoy en adelante.']];
         }
-        if ($fecha > date('Y-m-d', strtotime('+' . self::DIAS_MAXIMOS . ' days'))) {
-            return ['errores' => ['fecha' => 'Solo se pueden asignar turnos hasta un año hacia adelante.']];
+
+        $fechaMaxima = AsignacionModel::fechaMaximaHabilitada();
+        if ($fecha !== $fechaActual && $fecha > $fechaMaxima) {
+            return ['errores' => ['fecha' => 'La planificación mensual se habilita con 2 meses de anticipación (máximo hasta ' . fecha_ar($fechaMaxima) . ').']];
         }
 
         $errores = [];
@@ -206,13 +325,14 @@ class Asignaciones extends BaseController
         $tipo = (new TipoTurnoModel())->find((int) $datos['tipo_turno_id']);
         if (! $tipo instanceof TipoTurno) {
             $errores['tipo_turno_id'] = 'El turno elegido no está activo.';
+        } elseif ($sector instanceof Sector && (int) $tipo->sector_id !== (int) $sector->id) {
+            $errores['tipo_turno_id'] = "El turno «{$tipo->nombre}» no corresponde al sector «{$sector->nombre}».";
         }
 
         if ($errores !== []) {
             return ['errores' => $errores];
         }
 
-        // Un turno de hoy que ya terminó (por ejemplo la mañana, a las 15:00) no se puede asignar.
         if (AsignacionModel::calcularHorario($fecha, $tipo)['fin'] <= date('Y-m-d H:i:s')) {
             return ['errores' => ['tipo_turno_id' => "El turno {$tipo->nombre} de hoy ya terminó. Elija otra franja u otra fecha."]];
         }
@@ -220,25 +340,15 @@ class Asignaciones extends BaseController
         return [$enfermero, $sector, $tipo, $fecha];
     }
 
-    /**
-     * Respuesta de error: JSON para el modal de la cuadrícula, o volver al formulario.
-     *
-     * @param array<string, string> $errores
-     */
     private function fallar(array $errores): ResponseInterface
     {
         if ($this->request->isAJAX()) {
-            // El token CSRF se regenera en cada envío: se devuelve el nuevo para el próximo intento.
             return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'errores' => $errores, 'csrf' => csrf_hash()]);
         }
 
         return $this->volverConErrores($errores);
     }
 
-    /**
-     * Respuesta de éxito: JSON para el modal (el mensaje queda en flash para cuando la cuadrícula se recarga),
-     * o redirección a la cuadrícula de esa semana.
-     */
     private function exito(Sector $sector, string $fecha, string $mensaje): ResponseInterface
     {
         if ($this->request->isAJAX()) {
@@ -257,7 +367,6 @@ class Asignaciones extends BaseController
     {
         $horario = AsignacionModel::calcularHorario($fecha, $tipo);
 
-        // Strings, igual que los devuelve la base, para que hasChanged() compare bien.
         return [
             'usuario_id'       => (string) $enfermero->id,
             'sector_id'        => (string) $sector->id,
@@ -270,9 +379,6 @@ class Asignaciones extends BaseController
     }
 
     /**
-     * Listas para los selects, valores precargados y, si ya se sabe el turno y la fecha,
-     * la disponibilidad de cada enfermero/a (horas de la semana y motivo si no puede).
-     *
      * @param array<string, mixed> $previo
      *
      * @return array<string, mixed>
@@ -291,22 +397,25 @@ class Asignaciones extends BaseController
             }
         }
 
-        $disponibilidad = ($tipo !== null && $fecha !== null)
-            ? $this->modelo->disponibilidad($enfermeros, $tipo, $fecha, $excluirId)
-            : [];
+        $disponibilidad = [];
+        if ($tipo !== null && $fecha !== null) {
+            $priorizados    = $this->modelo->disponibilidadConPrioridad($enfermeros, $tipo, $fecha, $excluirId);
+            $enfermeros     = $priorizados['ordenados'];
+            $disponibilidad = $priorizados['info'];
+        }
 
         return [
             'enfermeros'     => $enfermeros,
+            'especialidades' => UsuarioModel::ESPECIALIDADES,
             'sectores'       => (new SectorModel())->activos(),
             'tipos'          => $tipos,
             'previo'         => $previo,
             'disponibilidad' => $disponibilidad,
             'calculoPara'    => $tipo !== null && $fecha !== null ? "{$tipo->nombre} del " . fecha_larga($fecha) : '',
-            'fechaMaxima'    => date('Y-m-d', strtotime('+' . self::DIAS_MAXIMOS . ' days')),
+            'fechaMaxima'    => AsignacionModel::fechaMaximaHabilitada(),
         ];
     }
 
-    /** Busca un turno que todavía no terminó; los terminados no se modifican. */
     private function buscarFutura(int $id): Asignacion|RedirectResponse
     {
         $asignacion = $this->modelo->find($id);
@@ -327,8 +436,7 @@ class Asignaciones extends BaseController
     {
         return redirect()->to(base_url('admin/planificador') . '?' . http_build_query([
             'sector' => (int) $sector->id,
-            'semana' => AsignacionModel::lunesDe($fecha),
+            'mes'    => substr($fecha, 0, 7),
         ]));
     }
-
 }

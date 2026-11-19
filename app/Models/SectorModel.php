@@ -72,6 +72,40 @@ class SectorModel extends Model
     }
 
     /**
+     * ¿Se puede asociar un tipo de turno a este sector? Solo si está ACTIVO y sin baja lógica (HU-10:
+     * un sector inactivo no se puede elegir). En la edición se permite conservar el sector que el tipo
+     * ya tenía aunque esté de baja ($sectorActualId), para poder corregir el nombre o el color del turno
+     * sin obligar a moverlo de sector.
+     */
+    public function esElegibleParaTipoTurno(int $sectorId, ?int $sectorActualId = null): bool
+    {
+        if ($sectorActualId !== null && $sectorId === $sectorActualId) {
+            return $this->withDeleted()->find($sectorId) !== null;
+        }
+
+        return $this->where('estado', 'ACTIVO')->find($sectorId) !== null; // find() ya excluye deleted_at
+    }
+
+    /**
+     * Sectores para el select del formulario de tipos de turno: los activos y, en la edición, también el
+     * sector actual del tipo aunque esté de baja (si no, el select perdería la selección).
+     *
+     * @return list<Sector>
+     */
+    public function paraFormularioTipoTurno(?int $sectorActualId = null): array
+    {
+        $this->withDeleted()
+            ->groupStart()
+                ->groupStart()->where('estado', 'ACTIVO')->where('deleted_at', null)->groupEnd();
+
+        if ($sectorActualId !== null) {
+            $this->orWhere('id', $sectorActualId);
+        }
+
+        return $this->groupEnd()->orderBy('nombre', 'ASC')->findAll();
+    }
+
+    /**
      * Sectores activos, primero los críticos (para asignar turnos y la cuadrícula).
      *
      * @return list<Sector>
