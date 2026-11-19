@@ -14,7 +14,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     /* ---------- Utilidades de validación visual ---------- */
 
-    // Contenedor del mensaje: en un input-group es el grupo; si no, el form-floating o el padre.
     function contenedorDe(input) {
         return input.closest('.input-group') || input.closest('.form-floating') || input.parentElement;
     }
@@ -54,7 +53,6 @@ document.addEventListener('DOMContentLoaded', function () {
         return input.getAttribute('data-mensaje') || input.validationMessage || 'Revise este campo.';
     }
 
-    // Reglas que el HTML no cubre: confirmación de contraseña.
     function validarExtra(input) {
         var selectorIgual = input.getAttribute('data-igual-a');
         if (selectorIgual) {
@@ -63,14 +61,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Errores que vienen del servidor: se enlaza el mensaje al campo para lectores de pantalla.
     document.querySelectorAll('.form-control.is-invalid, .form-select.is-invalid').forEach(function (input) {
         input.setAttribute('aria-invalid', 'true');
         var feedback = document.getElementById('error-' + input.id);
         if (feedback) { enlazarDescripcion(input, feedback.id); }
     });
 
-    // Si hay resumen de errores, se lleva el foco ahí para que se lea primero.
     var resumen = document.getElementById('resumen-errores');
     if (resumen) { resumen.focus(); }
 
@@ -83,10 +79,9 @@ document.addEventListener('DOMContentLoaded', function () {
         boton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>' + texto;
     }
 
-    // Los formularios de los modales de la cuadrícula se envían por AJAX y manejan su propio estado.
     document.querySelectorAll('form[method="post"]:not([data-ajax-asignar]):not([data-ajax-quitar])').forEach(function (form) {
         form.addEventListener('submit', function (evento) {
-            if (form.classList.contains('needs-validation')) { return; } // lo maneja la validación de abajo
+            if (form.classList.contains('needs-validation')) { return; }
             if (form.dataset.enviado === '1') { evento.preventDefault(); return; }
             form.dataset.enviado = '1';
             marcarEnviando(form);
@@ -98,7 +93,6 @@ document.addEventListener('DOMContentLoaded', function () {
         var campos = form.querySelectorAll('input, select, textarea');
 
         campos.forEach(function (input) {
-            // Al corregir un campo, el error se quita en vivo.
             input.addEventListener('input', function () {
                 validarExtra(input);
                 if (input.classList.contains('is-invalid') && input.checkValidity()) {
@@ -161,7 +155,6 @@ document.addEventListener('DOMContentLoaded', function () {
             letra: function (v) { return /[A-Za-z]/.test(v); },
             numero: function (v) { return /\d/.test(v); }
         };
-        // Estado accesible: el ícono es decorativo, el lector de pantalla lee "cumplido" o "pendiente".
         lista.querySelectorAll('[data-regla]').forEach(function (item) {
             var estado = document.createElement('span');
             estado.className = 'visually-hidden estado-regla';
@@ -195,7 +188,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 textoDuracion.textContent = 'Complete el horario para ver la duración.';
                 return;
             }
-            // Igual que el servidor: si el fin es menor o igual al inicio, termina al día siguiente.
             var minutos = (aMinutos(finTurno.value) - aMinutos(inicioTurno.value) + 1440) % 1440;
             if (minutos === 0) {
                 cajaDuracion.classList.add('es-error');
@@ -215,24 +207,23 @@ document.addEventListener('DOMContentLoaded', function () {
         calcularDuracion();
     }
 
-    /* ---------- Buscador que filtra las opciones de un select (enfermeros/as al asignar turno) ---------- */
+    /* ---------- Buscador que filtra las opciones de un select ---------- */
     document.querySelectorAll('[data-filtrar-select]').forEach(function (buscador) {
         var select = document.querySelector(buscador.getAttribute('data-filtrar-select'));
         if (!select) { return; }
         var normalizar = function (texto) {
-            return texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+            return texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         };
         buscador.addEventListener('input', function () {
             var buscado = normalizar(buscador.value.trim());
             Array.prototype.forEach.call(select.options, function (opcion) {
-                if (!opcion.value) { return; } // la opción "Elija un enfermero/a" siempre queda
+                if (!opcion.value) { return; }
                 opcion.hidden = buscado !== '' && normalizar(opcion.textContent).indexOf(buscado) === -1;
             });
         });
     });
 
-    /* ---------- Cuadrícula semanal: agregar y quitar personal con modal + AJAX (HU-14) ---------- */
-    // Sin JavaScript, los botones siguen siendo links al formulario común (mejora progresiva).
+    /* ---------- Planificador: agregar y quitar personal con modal + AJAX ---------- */
     var modalAsignar = document.getElementById('modalAsignar');
     var modalQuitar = document.getElementById('modalQuitar');
 
@@ -243,7 +234,7 @@ document.addEventListener('DOMContentLoaded', function () {
         ul.className = 'mb-0 ps-3 small';
         lista.forEach(function (texto) {
             var li = document.createElement('li');
-            li.textContent = texto; // textContent: nunca se interpreta HTML que venga del servidor
+            li.textContent = texto;
             ul.appendChild(li);
         });
         contenedor.appendChild(ul);
@@ -255,33 +246,77 @@ document.addEventListener('DOMContentLoaded', function () {
     var enviarAjax = function (form, url, botonOriginal) {
         var boton = form.querySelector('button[type="submit"]');
         var errores = form.querySelector('[data-errores-modal]');
-        var textoBoton = boton.innerHTML;
-        boton.disabled = true;
-        boton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Guardando...';
-        errores.classList.add('d-none');
+        var textoOriginal = boton ? (boton.getAttribute('data-texto-original') || boton.textContent.trim()) : 'Guardar';
+
+        if (boton) {
+            boton.setAttribute('data-texto-original', textoOriginal);
+            boton.disabled = true;
+            boton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Guardando...';
+        }
+        if (errores) {
+            errores.classList.add('d-none');
+        }
+
+        function restaurarBoton() {
+            if (boton) {
+                boton.disabled = false;
+                boton.textContent = textoOriginal;
+            }
+        }
 
         fetch(url, {
             method: 'POST',
             body: new FormData(form),
-            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
             credentials: 'same-origin'
         }).then(function (respuesta) {
-            return respuesta.json().then(function (datos) { return { estado: respuesta.status, datos: datos }; });
+            if (respuesta.status === 403) {
+                window.location.reload();
+                return null;
+            }
+            if (respuesta.redirected) {
+                window.location.href = respuesta.url;
+                return null;
+            }
+            return respuesta.text().then(function (texto) {
+                try {
+                    return { estado: respuesta.status, datos: JSON.parse(texto) };
+                } catch (e) {
+                    if (respuesta.ok) {
+                        window.location.reload();
+                        return null;
+                    }
+                    throw e;
+                }
+            });
         }).then(function (r) {
-            if (r.datos.ok) {
-                window.location.reload(); // la cuadrícula se vuelve a dibujar con el mensaje de éxito
+            if (!r) { return; }
+
+            if (r.datos && r.datos.csrf) {
+                document.querySelectorAll('input[name="csrf_test_name"]').forEach(function (campo) {
+                    campo.value = r.datos.csrf;
+                });
+            }
+
+            if (r.datos && r.datos.ok) {
+                window.location.reload();
                 return;
             }
-            // El token CSRF se regenera en cada envío: se usa el nuevo para el próximo intento.
-            if (r.datos.csrf) {
-                document.querySelectorAll('input[name="csrf_test_name"]').forEach(function (campo) { campo.value = r.datos.csrf; });
+
+            restaurarBoton();
+            if (errores) {
+                mostrarErrores(errores, (r.datos && r.datos.errores) || { general: 'No se pudo completar la operación. Intente nuevamente.' });
             }
-            mostrarErrores(errores, r.datos.errores || { general: 'No se pudo guardar. Intente nuevamente.' });
-            boton.disabled = false;
-            boton.innerHTML = textoBoton;
         }).catch(function () {
-            // Si falla la red o la sesión venció, se sigue por el camino común (formulario completo o recarga).
-            if (botonOriginal && botonOriginal.href) { window.location.href = botonOriginal.href; } else { window.location.reload(); }
+            restaurarBoton();
+            if (botonOriginal && botonOriginal.href) {
+                window.location.href = botonOriginal.href;
+            } else if (errores) {
+                mostrarErrores(errores, { general: 'Error de conexión o sesión vencida. Recargue la página e intente nuevamente.' });
+            }
         });
     };
 
@@ -290,21 +325,31 @@ document.addEventListener('DOMContentLoaded', function () {
         var formAsignar = modalAsignar.querySelector('form[data-ajax-asignar]');
         var origenAsignar = null;
 
-        document.querySelectorAll('[data-modal-asignar]').forEach(function (boton) {
-            boton.addEventListener('click', function (evento) {
-                evento.preventDefault();
-                origenAsignar = boton;
-                formAsignar.querySelector('[name="sector_id"]').value = boton.getAttribute('data-sector');
-                formAsignar.querySelector('[name="tipo_turno_id"]').value = boton.getAttribute('data-tipo');
-                formAsignar.querySelector('[name="fecha"]').value = boton.getAttribute('data-fecha');
-                formAsignar.querySelector('[data-descripcion-turno]').textContent = 'Turno ' + boton.getAttribute('data-descripcion') + '.';
-                formAsignar.querySelector('[data-errores-modal]').classList.add('d-none');
-                formAsignar.querySelector('select').value = '';
-                instanciaAsignar.show(boton);
-            });
+        document.addEventListener('click', function (evento) {
+            var boton = evento.target.closest('[data-modal-asignar]');
+            if (!boton) { return; }
+            evento.preventDefault();
+            origenAsignar = boton;
+            formAsignar.querySelector('[name="sector_id"]').value = boton.getAttribute('data-sector');
+            formAsignar.querySelector('[name="tipo_turno_id"]').value = boton.getAttribute('data-tipo');
+            formAsignar.querySelector('[name="fecha"]').value = boton.getAttribute('data-fecha');
+            formAsignar.querySelector('[data-descripcion-turno]').textContent = 'Turno ' + boton.getAttribute('data-descripcion') + '.';
+            formAsignar.querySelector('[data-errores-modal]').classList.add('d-none');
+            formAsignar.querySelector('select').value = '';
+            instanciaAsignar.show(boton);
         });
-        modalAsignar.addEventListener('shown.bs.modal', function () { formAsignar.querySelector('select').focus(); });
-        modalAsignar.addEventListener('hidden.bs.modal', function () { if (origenAsignar) { origenAsignar.focus(); } });
+
+        modalAsignar.addEventListener('shown.bs.modal', function () {
+            formAsignar.querySelector('select').focus();
+        });
+        modalAsignar.addEventListener('hidden.bs.modal', function () {
+            var btn = formAsignar.querySelector('button[type="submit"]');
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = btn.getAttribute('data-texto-original') || 'Asignar';
+            }
+            if (origenAsignar) { origenAsignar.focus(); }
+        });
 
         formAsignar.addEventListener('submit', function (evento) {
             evento.preventDefault();
@@ -322,16 +367,25 @@ document.addEventListener('DOMContentLoaded', function () {
         var formQuitar = modalQuitar.querySelector('form[data-ajax-quitar]');
         var origenQuitar = null;
 
-        document.querySelectorAll('[data-quitar]').forEach(function (boton) {
-            boton.addEventListener('click', function () {
-                origenQuitar = boton;
-                formQuitar.action = formQuitar.getAttribute('data-base') + '/' + boton.getAttribute('data-quitar') + '/eliminar';
-                formQuitar.querySelector('[data-descripcion-turno]').textContent = boton.getAttribute('data-descripcion');
-                formQuitar.querySelector('[data-errores-modal]').classList.add('d-none');
-                instanciaQuitar.show(boton);
-            });
+        document.addEventListener('click', function (evento) {
+            var boton = evento.target.closest('[data-quitar]');
+            if (!boton) { return; }
+            evento.preventDefault();
+            origenQuitar = boton;
+            formQuitar.action = formQuitar.getAttribute('data-base') + '/' + boton.getAttribute('data-quitar') + '/eliminar';
+            formQuitar.querySelector('[data-descripcion-turno]').textContent = boton.getAttribute('data-descripcion');
+            formQuitar.querySelector('[data-errores-modal]').classList.add('d-none');
+            instanciaQuitar.show(boton);
         });
-        modalQuitar.addEventListener('hidden.bs.modal', function () { if (origenQuitar) { origenQuitar.focus(); } });
+
+        modalQuitar.addEventListener('hidden.bs.modal', function () {
+            var btn = formQuitar.querySelector('button[type="submit"]');
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = btn.getAttribute('data-texto-original') || 'Quitar';
+            }
+            if (origenQuitar) { origenQuitar.focus(); }
+        });
 
         formQuitar.addEventListener('submit', function (evento) {
             evento.preventDefault();
@@ -378,7 +432,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             function avisar(texto) { if (estado) { estado.textContent = texto; } }
 
-            // navigator.clipboard solo existe en HTTPS o localhost; en la intranet por http se selecciona el texto.
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(origen.textContent.trim()).then(function () {
                     avisar('Contraseña copiada.');
