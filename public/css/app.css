@@ -1100,3 +1100,130 @@ td .text-primary {
 .tp-avatar-stack__item--extra {
     background: #6d5016;
 }
+
+/* ==========================================================
+   13. SELECTOR VISUAL DE ENFERMEROS Y FILTROS DEL PLANIFICADOR
+   ========================================================== */
+.tp-filtro-barra {
+    background: var(--color-fondo);
+    border: 1px solid var(--color-borde-suave);
+    border-radius: var(--radio);
+}
+
+.tp-enfermeros-scroll {
+    max-height: 380px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.tp-enfermeros-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.tp-enfermeros-scroll::-webkit-scrollbar-track {
+    background: #f1f4f2;
+    border-radius: 4px;
+}
+
+.tp-enfermeros-scroll::-webkit-scrollbar-thumb {
+    background: #c2cfc7;
+    border-radius: 4px;
+}
+
+.tp-enfermeros-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--color-primario);
+}
+
+.tp-enfermero-opcion {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    background: var(--color-blanco);
+    border: 1.5px solid var(--color-borde-suave);
+    border-radius: var(--radio);
+    cursor: pointer;
+    transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+    user-select: none;
+}
+
+.tp-enfermero-opcion:hover {
+    border-color: var(--color-primario);
+    background-color: #fbfdfc;
+    box-shadow: 0 2px 6px rgba(27, 77, 62, 0.06);
+}
+
+.tp-enfermero-opcion:focus-visible {
+    outline: 2px solid var(--color-primario-oscuro);
+    outline-offset: 2px;
+}
+
+.tp-enfermero-opcion.is-selected {
+    border-color: var(--color-primario-oscuro) !important;
+    background-color: var(--color-primario-suave) !important;
+    box-shadow: 0 0 0 1px var(--color-primario-oscuro);
+}
+
+.tp-enfermero-opcion.is-disabled {
+    opacity: 0.6;
+    background-color: #f7f9f8;
+    cursor: not-allowed;
+    border-style: dashed;
+}
+
+.tp-enfermero-opcion.is-disabled:hover {
+    border-color: var(--color-borde-suave);
+    background-color: #f7f9f8;
+    box-shadow: none;
+}
+
+.tp-avatar-circulo {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    background: #eef5f1;
+    color: var(--color-primario-oscuro);
+    border: 1px solid rgba(27, 77, 62, 0.15);
+    flex-shrink: 0;
+}
+
+.tp-enfermero-opcion.is-selected .tp-avatar-circulo {
+    background: var(--color-primario-oscuro);
+    color: var(--color-blanco);
+    border-color: var(--color-primario-oscuro);
+}
+
+.tp-check-circulo {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid var(--color-borde);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    color: transparent;
+    background: var(--color-blanco);
+    flex-shrink: 0;
+    transition: all 140ms ease;
+}
+
+.tp-enfermero-opcion.is-selected .tp-check-circulo {
+    background: var(--color-primario-oscuro);
+    border-color: var(--color-primario-oscuro);
+    color: var(--color-blanco);
+}
+
+.tp-badge-especialidad {
+    font-size: 0.72rem;
+    font-weight: 500;
+    background: #edf3f0;
+    color: var(--color-texto);
+    border: 1px solid #d5e0d9;
+}

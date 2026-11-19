@@ -126,6 +126,7 @@ class Planificador extends BaseController
             'fechaMaxima'        => AsignacionModel::fechaMaximaHabilitada(),
             'grilla'             => $grilla,
             'enfermeros'         => (new UsuarioModel())->enfermerosActivos(),
+            'especialidades'     => UsuarioModel::ESPECIALIDADES,
             'resumenMes'         => $asignacionModel->minutosMesPorEnfermero($anioMes),
             'turnosPorEnfermero' => $turnosPorEnfermero,
             'ahora'              => date('Y-m-d H:i:s'),

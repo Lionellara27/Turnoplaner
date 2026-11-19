@@ -296,6 +296,7 @@ class Asignaciones extends BaseController
 
         return [
             'enfermeros'     => $enfermeros,
+            'especialidades' => UsuarioModel::ESPECIALIDADES,
             'sectores'       => (new SectorModel())->activos(),
             'tipos'          => $tipos,
             'previo'         => $previo,
