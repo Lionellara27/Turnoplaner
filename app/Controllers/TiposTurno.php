@@ -106,12 +106,18 @@ class TiposTurno extends BaseController
             return $error;
         }
 
+        $sectorAnterior = (int) $tipo->sector_id;
         $tipo->fill($this->datosTipo($datos));
 
-        if (($tipo->hasChanged('hora_inicio') || $tipo->hasChanged('hora_fin') || $tipo->hasChanged('sector_id'))
-            && $this->modelo->tieneAsignacionesFuturas($id, 'tipo_turno_id')) {
+        $cambioSector  = (int) $tipo->sector_id !== $sectorAnterior;
+        $cambioHorario = $tipo->hasChanged('hora_inicio') || $tipo->hasChanged('hora_fin');
+
+        if (($cambioSector || $cambioHorario) && $this->modelo->tieneAsignacionesFuturas($id, 'tipo_turno_id')) {
+            $campoError = $cambioSector ? 'sector_id' : 'hora_inicio';
+            $motivo     = $cambioSector ? 'la zona' : 'el horario';
+
             return $this->volverConErrores([
-                'hora_inicio' => "No se puede cambiar el horario ni la zona de «{$tipo->nombre}»: tiene turnos asignados desde hoy en adelante. "
+                $campoError => "No se puede cambiar {$motivo} de «{$tipo->nombre}»: tiene turnos asignados desde hoy en adelante. "
                     . 'Cree un tipo de turno nuevo o reasigne esos turnos primero.',
             ]);
         }
@@ -237,7 +243,7 @@ class TiposTurno extends BaseController
         $fin    = (string) $datos['hora_fin'];
 
         return [
-            'sector_id'        => (int) $datos['sector_id'],
+            'sector_id'        => (string) (int) $datos['sector_id'],
             'nombre'           => trim((string) $datos['nombre']),
             'hora_inicio'      => $inicio . ':00',
             'hora_fin'         => $fin . ':00',
