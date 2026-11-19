@@ -53,12 +53,12 @@ class AsignacionModel extends Model
 
     /**
      * Fecha máxima habilitada para asignar turnos:
-     * la planificación mensual está disponible 1 mes antes (hasta el último día del mes siguiente al actual).
+     * la planificación mensual está disponible 2 mes antes (hasta el último día del mes siguiente al actual).
      */
     public static function fechaMaximaHabilitada(): string
     {
-        return (new DateTimeImmutable('first day of next month'))
-            ->modify('last day of this month')
+        return (new DateTimeImmutable('today'))
+            ->modify('+2 months')
             ->format('Y-m-d');
     }
 

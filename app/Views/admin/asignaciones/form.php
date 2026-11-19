@@ -52,7 +52,7 @@ $faltanDatos = $enfermeros === [] || $sectores === [] || $tipos === [];
         <div class="alerta alerta--info d-flex align-items-start gap-2 mb-4" role="note">
             <i class="bi bi-info-circle-fill fs-5" aria-hidden="true"></i>
             <div class="small">
-                La planificación mensual está habilitada hasta <strong>1 mes por adelantado</strong> (hasta el <?= esc(fecha_ar($fechaMaxima)) ?>).
+                La planificación mensual está habilitada hasta <strong>2 meses por adelantado</strong> (hasta el <?= esc(fecha_ar($fechaMaxima)) ?>).
                 Tienen prioridad quienes aún no completaron su carga horaria; quienes ya la cumplieron pueden seguir tomando turnos como <strong>horas extras cubiertas</strong> (siempre que no se superpongan).
             </div>
         </div>
@@ -126,7 +126,7 @@ $faltanDatos = $enfermeros === [] || $sectores === [] || $tipos === [];
                         <label for="fecha">Fecha de inicio del turno *</label>
                         <?= feedback_campo('fecha') ?>
                     </div>
-                    <div id="ayuda-fecha" class="form-text">Habilitado hasta <?= esc(fecha_ar($fechaMaxima)) ?> (1 mes por adelantado).</div>
+                    <div id="ayuda-fecha" class="form-text">Habilitado hasta <?= esc(fecha_ar($fechaMaxima)) ?> (2 meses por adelantado).</div>
                 </div>
 
                 <div class="col-12">

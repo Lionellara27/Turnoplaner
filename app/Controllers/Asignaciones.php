@@ -18,7 +18,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 /**
  * HU-13: asignación mensual de turnos con control de superposición, horas extras con prioridad
- * y ventana habilitada con 1 mes de anticipación.
+ * y ventana habilitada con 2 meses de anticipación.
  */
 class Asignaciones extends BaseController
 {
@@ -197,7 +197,7 @@ class Asignaciones extends BaseController
 
         $fechaMaxima = AsignacionModel::fechaMaximaHabilitada();
         if ($fecha > $fechaMaxima) {
-            return ['errores' => ['fecha' => 'La planificación mensual se habilita con 1 mes de anticipación (máximo hasta ' . fecha_ar($fechaMaxima) . ').']];
+            return ['errores' => ['fecha' => 'La planificación mensual se habilita con 2 meses de anticipación (máximo hasta ' . fecha_ar($fechaMaxima) . ').']];
         }
 
         $errores = [];
