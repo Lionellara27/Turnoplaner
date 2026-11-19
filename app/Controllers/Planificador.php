@@ -12,18 +12,12 @@ use App\Models\UsuarioModel;
 use DateTimeImmutable;
 
 /**
- * HU-14: Calendario mensual de turnos por zona/sector (pantalla inicial del ADMIN).
- * Muestra todos los días del mes en cuadrícula de calendario, botones para cambiar entre zonas,
+ * HU-14: Calendario mensual de turnos por sector (pantalla inicial del ADMIN).
+ * Muestra todos los días del mes en cuadrícula de calendario, botones para cambiar entre sectores,
  * y dentro de cada día los horarios del sector con los enfermeros asignados y dotación mínima.
  */
 class Planificador extends BaseController
 {
-    private const MESES = [
-        1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
-        5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
-        9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
-    ];
-
     public function index(): string
     {
         $sectores = (new SectorModel())->activos();
@@ -37,7 +31,7 @@ class Planificador extends BaseController
         }
         $sector ??= $sectores[0] ?? null;
 
-        // Solo los tipos de turno activos de la zona seleccionada
+        // Solo los tipos de turno activos del sector seleccionado
         $tipos = $sector instanceof Sector
             ? (new TipoTurnoModel())->activosPorSector((int) $sector->id)
             : [];
@@ -56,18 +50,8 @@ class Planificador extends BaseController
         $ultimoDia = $primerDia->modify('last day of this month');
         $hoy       = date('Y-m-d');
 
-        // Armar semanas del calendario (de lunes a domingo) cubriendo todo el mes
-        $cursor  = new DateTimeImmutable(AsignacionModel::lunesDe($primerDia->format('Y-m-d')));
-        $finCal  = (new DateTimeImmutable(AsignacionModel::lunesDe($ultimoDia->format('Y-m-d'))))->modify('+6 days');
-        $semanas = [];
-        while ($cursor <= $finCal) {
-            $fila = [];
-            for ($i = 0; $i < 7; $i++) {
-                $fila[] = $cursor->modify("+{$i} days")->format('Y-m-d');
-            }
-            $semanas[] = $fila;
-            $cursor    = $cursor->modify('+7 days');
-        }
+        // Semanas del calendario (de lunes a domingo) cubriendo todo el mes
+        $semanas = AsignacionModel::semanasDelMes($anioMes);
 
         $asignacionModel = new AsignacionModel();
         $grilla          = $sector instanceof Sector ? $asignacionModel->mesDeSector((int) $sector->id, $anioMes) : [];
@@ -84,10 +68,12 @@ class Planificador extends BaseController
             usort($tipos, static fn ($a, $b): int => strcmp((string) $a->hora_inicio, (string) $b->hora_inicio));
         }
 
-        // Turnos del mes por enfermero (en todos los sectores) para el modal de ficha y detalle horario
+        // Turnos del mes por enfermero (en todos los sectores) para el modal de ficha y detalle horario.
+        // El horario sale de asignaciones.inicio/fin (lo que se asignó de verdad), no del horario ACTUAL del
+        // tipo de turno: si después se edita el tipo, la ficha no debe mostrar un horario que nunca tuvo.
         $turnosPorEnfermero = [];
         $rowsMes = $asignacionModel
-            ->select('asignaciones.*, sectores.nombre AS sector_nombre, tipos_turno.nombre AS tipo_nombre, tipos_turno.hora_inicio, tipos_turno.hora_fin, tipos_turno.color AS tipo_color')
+            ->select('asignaciones.*, sectores.nombre AS sector_nombre, tipos_turno.nombre AS tipo_nombre, tipos_turno.color AS tipo_color')
             ->join('sectores', 'sectores.id = asignaciones.sector_id', 'left')
             ->join('tipos_turno', 'tipos_turno.id = asignaciones.tipo_turno_id', 'left')
             ->where('asignaciones.fecha >=', $primerDia->format('Y-m-d'))
@@ -103,14 +89,14 @@ class Planificador extends BaseController
                 'dia_sem'  => ucfirst(dia_semana((string) $asig->fecha)),
                 'sector'   => (string) ($asig->sector_nombre ?? 'Sector'),
                 'turno'    => (string) ($asig->tipo_nombre ?? 'Turno'),
-                'horario'  => substr((string) ($asig->hora_inicio ?? ''), 0, 5) . ' - ' . substr((string) ($asig->hora_fin ?? ''), 0, 5),
+                'horario'  => $asig->horaInicio() . ' - ' . $asig->horaFin(),
                 'color'    => (string) ($asig->tipo_color ?? '#1B4D3E'),
                 'duracion' => AsignacionModel::horasTexto((int) $asig->duracion_minutos),
                 'extra'    => $asig->esExtra() ? AsignacionModel::horasTexto((int) $asig->minutos_extra) : null,
             ];
         }
 
-        $nombreMes = self::MESES[(int) $primerDia->format('n')] . ' ' . $primerDia->format('Y');
+        $nombreMes = AsignacionModel::nombreMes($anioMes);
 
         return view('admin/planificador/index', [
             'titulo'             => 'Planificador mensual - TurnoPlaner',
@@ -128,6 +114,8 @@ class Planificador extends BaseController
             'enfermeros'         => (new UsuarioModel())->enfermerosActivos(),
             'especialidades'     => UsuarioModel::ESPECIALIDADES,
             'resumenMes'         => $asignacionModel->minutosMesPorEnfermero($anioMes),
+            // Horas de la semana actual contra el tope semanal (HU-14: balanceo de carga, DESIGN 4.9).
+            'resumenSemana'      => $asignacionModel->minutosSemanaPorEnfermero(AsignacionModel::lunesDe($hoy)),
             'turnosPorEnfermero' => $turnosPorEnfermero,
             'ahora'              => date('Y-m-d H:i:s'),
         ]);

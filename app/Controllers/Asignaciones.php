@@ -97,7 +97,9 @@ class Asignaciones extends BaseController
             return $asignacion;
         }
 
-        $resultado = $this->validarYArmar();
+        // La ventana de 2 meses se controla solo si el turno se mueve a otra fecha: cambiarle el
+        // enfermero/a o la franja a un turno ya cargado no debe rechazarse por esa ventana.
+        $resultado = $this->validarYArmar((string) $asignacion->fecha);
         if (isset($resultado['errores'])) {
             return $this->fallar($resultado['errores']);
         }
@@ -137,7 +139,11 @@ class Asignaciones extends BaseController
         }
 
         $sector = (new SectorModel())->withDeleted()->find((int) $asignacion->sector_id);
-        $this->modelo->delete($id);
+
+        // Baja lógica + recálculo de las horas extras de esa semana, en una sola transacción (modelo).
+        if (! $this->modelo->eliminarConRecalculo($asignacion)) {
+            return $this->fallar(['general' => 'No se pudo eliminar el turno. Intente nuevamente.']);
+        }
 
         $mensaje = 'Turno eliminado del ' . fecha_larga((string) $asignacion->fecha)
             . ($sector instanceof Sector ? " en {$sector->nombre}." : '.');
@@ -157,11 +163,115 @@ class Asignaciones extends BaseController
     }
 
     /**
+     * Disponibilidad de enfermeros/as para el modal del planificador (HU-13 / HU-14). Solo AJAX o JSON.
+     *
+     * GET admin/asignaciones/disponibilidad?sector_id=N&tipo_turno_id=N&fecha=YYYY-MM-DD[&excluir=ID]
+     *   - sector_id:     sector activo.
+     *   - tipo_turno_id: tipo de turno activo que pertenece a ese sector.
+     *   - fecha:         día en que empieza el turno.
+     *   - excluir:       (opcional) id del turno que se está reasignando: no cuenta ni para las horas
+     *                    de la semana ni para la superposición.
+     *
+     * 200: {"ok": true, "enfermeros": [{
+     *          "id": int, "nombre": "Apellido, Nombre", "especialidad": string, "matricula": string,
+     *          "minutos_semana": int, "maximo_minutos": int, "horas_texto": "32 h de 36 h esta semana",
+     *          "estado": "disponible" | "extra" | "no_disponible", "motivo": string | null
+     *      }, ...]}
+     *      Mismo orden que AsignacionModel::evaluarDisponibilidad(): primero los disponibles (menos horas
+     *      primero), después los que entrarían como hora extra y al final los no disponibles con su motivo.
+     * 422: {"ok": false, "errores": {"campo": "mensaje", ...}} si algún parámetro es inválido.
+     * 404: si se abre como página normal (no es una pantalla, solo datos para el modal).
+     *
+     * Es GET y no modifica nada, por eso no consume ni regenera el token CSRF.
+     */
+    public function disponibilidad(): ResponseInterface
+    {
+        if (! $this->request->isAJAX() && ! str_contains($this->request->getHeaderLine('Accept'), 'application/json')) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $datos = [
+            'sector_id'     => $this->textoGet('sector_id'),
+            'tipo_turno_id' => $this->textoGet('tipo_turno_id'),
+            'fecha'         => $this->textoGet('fecha'),
+            'excluir'       => $this->textoGet('excluir'),
+        ];
+        $reglas = [
+            'sector_id' => [
+                'rules'  => 'required|is_natural_no_zero',
+                'errors' => ['required' => 'Elija el sector.', 'is_natural_no_zero' => 'Elija el sector.'],
+            ],
+            'tipo_turno_id' => [
+                'rules'  => 'required|is_natural_no_zero',
+                'errors' => ['required' => 'Elija el turno.', 'is_natural_no_zero' => 'Elija el turno.'],
+            ],
+            'fecha' => [
+                'rules'  => 'required|valid_date[Y-m-d]',
+                'errors' => ['required' => 'Elija la fecha.', 'valid_date' => 'Ingrese una fecha válida (AAAA-MM-DD).'],
+            ],
+            'excluir' => [
+                'rules'  => 'permit_empty|is_natural_no_zero',
+                'errors' => ['is_natural_no_zero' => 'El turno a excluir no es válido.'],
+            ],
+        ];
+
+        if (! $this->validateData($datos, $reglas)) {
+            return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'errores' => $this->validator->getErrors()]);
+        }
+        if ($this->fechaValida($datos['fecha']) === null) {
+            return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'errores' => ['fecha' => 'Ingrese una fecha válida (AAAA-MM-DD).']]);
+        }
+
+        $sector = (new SectorModel())->find((int) $datos['sector_id']);
+        $tipo   = (new TipoTurnoModel())->find((int) $datos['tipo_turno_id']);
+
+        $errores = [];
+        if (! $sector instanceof Sector) {
+            $errores['sector_id'] = 'El sector elegido no está activo.';
+        }
+        if (! $tipo instanceof TipoTurno) {
+            $errores['tipo_turno_id'] = 'El turno elegido no está activo.';
+        } elseif ($sector instanceof Sector && (int) $tipo->sector_id !== (int) $sector->id) {
+            $errores['tipo_turno_id'] = "El turno «{$tipo->nombre}» no corresponde al sector «{$sector->nombre}».";
+        }
+        if ($errores !== []) {
+            return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'errores' => $errores]);
+        }
+
+        $excluir = $datos['excluir'] !== '' ? (int) $datos['excluir'] : null;
+        $filas   = $this->modelo->evaluarDisponibilidad((new UsuarioModel())->enfermerosActivos(), $tipo, $datos['fecha'], $excluir);
+
+        $enfermeros = [];
+        foreach ($filas as $fila) {
+            $e      = $fila['enfermero'];
+            $maximo = $fila['maximo_minutos'];
+
+            $enfermeros[] = [
+                'id'             => (int) $e->id,
+                'nombre'         => "{$e->apellido}, {$e->nombre}",
+                'especialidad'   => (string) ($e->especialidad ?? ''),
+                'matricula'      => (string) ($e->matricula ?? ''),
+                'minutos_semana' => $fila['minutos_semana'],
+                'maximo_minutos' => $maximo,
+                'horas_texto'    => AsignacionModel::horasTexto($fila['minutos_semana'])
+                    . ($maximo > 0 ? ' de ' . AsignacionModel::horasTexto($maximo) : '') . ' esta semana',
+                'estado'         => $fila['estado'],
+                'motivo'         => $fila['motivo'],
+            ];
+        }
+
+        return $this->response->setJSON(['ok' => true, 'enfermeros' => $enfermeros]);
+    }
+
+    /**
      * Valida el formulario y busca enfermero/a, sector y tipo de turno activos.
+     *
+     * @param string|null $fechaActual fecha que ya tenía el turno (reasignación): si no cambia, no se
+     *                                 aplica el tope de la ventana habilitada (fechaMaximaHabilitada).
      *
      * @return array{0: Usuario, 1: Sector, 2: TipoTurno, 3: string}|array{errores: array<string, string>}
      */
-    private function validarYArmar(): array
+    private function validarYArmar(?string $fechaActual = null): array
     {
         $datos  = $this->datosRecortados();
         $reglas = [
@@ -196,7 +306,7 @@ class Asignaciones extends BaseController
         }
 
         $fechaMaxima = AsignacionModel::fechaMaximaHabilitada();
-        if ($fecha > $fechaMaxima) {
+        if ($fecha !== $fechaActual && $fecha > $fechaMaxima) {
             return ['errores' => ['fecha' => 'La planificación mensual se habilita con 2 meses de anticipación (máximo hasta ' . fecha_ar($fechaMaxima) . ').']];
         }
 

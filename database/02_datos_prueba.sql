@@ -124,7 +124,8 @@ INSERT INTO usuarios (id, dni, nombre, apellido, email, telefono, domicilio, pas
 (40, '30100037', 'Juana',       'Vega',        'juana.vega@hospital.local',          '2920200037', 'Santa Fe 290',      @pass_enfermero, 'ENFERMERO', 'MP-1039', 'Oncología',                                   36,   'ACTIVO', 0, NOW(), NOW(), NULL),
 (41, '30100038', 'Gonzalo',     'Reyes',       'gonzalo.reyes@hospital.local',       '2920200038', 'Entre Ríos 515',    @pass_enfermero, 'ENFERMERO', 'MP-1040', 'Oncología',                                   36,   'ACTIVO', 0, NOW(), NOW(), NULL),
 
--- 10 ENFERMEROS/AS ACTIVOS SIN CARGA HORARIA CUBIERTA (IDs 42 al 51 -> listos para dar de baja en demo)
+-- 10 ENFERMEROS/AS ACTIVOS SIN TURNOS ASIGNADOS (IDs 42 al 51): tienen carga horaria definida pero ningún
+--    turno cargado, así aparecen primeros como "disponibles" en el planificador y se pueden dar de baja en la demo.
 (42, '30100039', 'Malena',      'Campos',      'malena.campos@hospital.local',       '2920200039', 'Corrientes 188',    @pass_enfermero, 'ENFERMERO', 'MP-1041', 'Enfermería General',                          36,   'ACTIVO', 0, NOW(), NOW(), NULL),
 (43, '30100040', 'Bruno',       'Cardozo',     'bruno.cardozo@hospital.local',       '2920200040', 'Neuquén 340',       @pass_enfermero, 'ENFERMERO', 'MP-1042', 'Enfermería General',                          36,   'ACTIVO', 0, NOW(), NOW(), NULL),
 (44, '30100041', 'Lola',        'Vargas',      'lola.vargas@hospital.local',         '2920200041', 'Chubut 720',        @pass_enfermero, 'ENFERMERO', 'MP-1043', 'Enfermería General',                          48,   'ACTIVO', 0, NOW(), NOW(), NULL),
@@ -407,3 +408,30 @@ DELIMITER ;
 
 CALL sp_poblar_turnos_demo();
 DROP PROCEDURE sp_poblar_turnos_demo;
+
+-- ==========================================================
+-- 5. HORAS EXTRAS COHERENTES CON LA REGLA SEMANAL
+-- ==========================================================
+-- El procedimiento de arriba carga los turnos sector por sector, no en orden cronológico, y en algunos
+-- sectores ni siquiera calcula las extras. Acá se recalculan TODAS con la misma regla que usa la
+-- aplicación (AsignacionModel::recalcularExtrasSemana):
+--   por enfermero/a y semana (lunes a domingo, según la fecha de inicio del turno), se recorren los
+--   turnos en orden de inicio acumulando minutos; cada turno es extra en la parte que supera
+--   carga_horaria_max * 60  ->  minutos_extra = clamp(acumulado - maximo, 0, duracion).
+--   Sin carga horaria definida no hay extras.
+UPDATE asignaciones a
+JOIN (
+    SELECT x.id,
+           x.duracion_minutos,
+           COALESCE(u.carga_horaria_max, 0) * 60 AS maximo,
+           SUM(x.duracion_minutos) OVER (
+               PARTITION BY x.usuario_id, DATE_SUB(x.fecha, INTERVAL WEEKDAY(x.fecha) DAY)
+               ORDER BY x.inicio, x.id
+               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+           ) AS acumulado
+    FROM asignaciones x
+    JOIN usuarios u ON u.id = x.usuario_id
+    WHERE x.deleted_at IS NULL
+) c ON c.id = a.id
+SET a.minutos_extra = IF(c.maximo > 0, GREATEST(0, LEAST(c.duracion_minutos, c.acumulado - c.maximo)), 0),
+    a.es_extra      = IF(c.maximo > 0 AND c.acumulado > c.maximo, 1, 0);

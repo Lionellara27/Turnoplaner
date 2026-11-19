@@ -70,8 +70,14 @@ class Security extends BaseConfig
      * --------------------------------------------------------------------------
      *
      * Regenerate CSRF Token on every submission.
+     *
+     * TurnoPlaner: true (como en main). Cada POST invalida el token anterior, así un token filtrado sirve
+     * una sola vez. El planificador funciona igual porque todas las respuestas JSON de los POST AJAX
+     * (asignar, reasignar, eliminar; también las de error 422) devuelven el token nuevo en "csrf" y el
+     * frontend lo copia en todos los formularios de la página. Las consultas GET (por ejemplo
+     * admin/asignaciones/disponibilidad) no consumen token.
      */
-    public bool $regenerate = false;
+    public bool $regenerate = true;
 
     /**
      * --------------------------------------------------------------------------

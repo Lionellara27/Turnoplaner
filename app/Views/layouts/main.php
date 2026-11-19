@@ -9,7 +9,7 @@ $inicioRol    = base_url($rol === 'ADMIN' ? 'inicio' : 'mi-cronograma');
 
 /*
  * Menú lateral por rol (DESIGN.md 4.6). Cada HU nueva agrega acá su ítem.
- * Formato: [ruta, ícono de Bootstrap Icons, texto].
+ * Formato: [ruta, ícono de Bootstrap Icons, texto, rutas hijas opcionales].
  * "Mi perfil" y "Cerrar sesión" van fijos abajo del menú (ver más abajo).
  */
 $menu = $rol === 'ADMIN'
@@ -19,7 +19,7 @@ $menu = $rol === 'ADMIN'
             ['admin/usuarios', 'bi-people', 'Personal'],
             ['admin/sectores', 'bi-hospital', 'Sectores'],
             ['admin/tipos-turno', 'bi-clock', 'Tipos de turno'],
-            ['admin/planificador', 'bi-calendar-week', 'Planificador'],
+            ['admin/planificador', 'bi-calendar-week', 'Planificador', ['admin/asignaciones/*']],
         ],
     ]
     : [
@@ -36,7 +36,8 @@ $esActual = static fn (string $ruta): bool => url_is($ruta) || url_is($ruta . '/
 // Un ítem del menú lateral (ícono + texto; en el menú compacto solo queda el ícono).
 $itemMenu = static function (array $item) use ($esActual): string {
     [$ruta, $icono, $texto] = $item;
-    $actual = $esActual($ruta);
+    // El 4.º elemento (opcional) son rutas hijas que también marcan el ítem (asignar turno → Planificador)
+    $actual = $esActual($ruta) || array_filter($item[3] ?? [], static fn (string $r): bool => url_is($r)) !== [];
 
     return '<li class="nav-item"><a class="nav-link' . ($actual ? ' active' : '') . '" href="' . base_url($ruta) . '"'
         . ($actual ? ' aria-current="page"' : '') . ' title="' . esc($texto, 'attr') . '">'
@@ -64,10 +65,9 @@ $itemMenu = static function (array $item) use ($esActual): string {
     <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&family=Source+Code+Pro:wght@500;600&family=Wix+Madefor+Display:wght@500..700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= base_url('css/app.css') ?>">
 
-    <?php if ($conMenu): ?>
-    <!-- Aplica la preferencia "menú compacto" antes de pintar, para que no parpadee -->
-    <script>try { if (localStorage.getItem('tp-menu-compacto') === '1') { document.documentElement.classList.add('menu-compacto'); } } catch (e) {}</script>
-    <?php endif; ?>
+    <!-- app.js va en el <head> (sin defer): aplica la preferencia "menú compacto" antes de pintar para que no parpadee.
+         El resto del código espera a DOMContentLoaded, cuando Bootstrap (al final del body) ya está cargado. -->
+    <script src="<?= base_url('js/app.js') ?>"></script>
 </head>
 <body>
 
@@ -173,6 +173,5 @@ $itemMenu = static function (array $item) use ($esActual): string {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
             integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <script src="<?= base_url('js/app.js') ?>"></script>
 </body>
 </html>

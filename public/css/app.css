@@ -11,9 +11,11 @@
    6. Tarjetas Indicadoras del Panel
    7. Menú Lateral (Fijo y Compacto)
    8. Tipos de Turno (Etiquetas y Selectores)
-   9. Planificador Semanal y Mensual (Cuadrícula)
+   9. Planificador Mensual (Cobertura, Filas de Turno, Carga Horaria)
    10. Mi Cronograma (Vista Enfermero/a)
-   11. Calendario Mensual Sage & Pine (Panel y Modal)
+   11. Calendario Mensual Sage & Pine (Panel y Planificador)
+   12. Panel Lateral del Día, Modales y Ficha del Enfermero/a
+   13. Selector de Enfermeros/as y Filtros
    ========================================================== */
 
 /* ==========================================================
@@ -36,6 +38,13 @@
     --color-aviso-fondo: #fef7e8;
     --color-error: #a42626;
     --color-error-fondo: #fdf0f0;
+    --color-info: #1f5f8b;
+    --color-info-fondo: #e7f1f8;
+    /* Fondos y bordes auxiliares (contrastes medidos, ver informe en DESIGN.md) */
+    --color-fondo-suave: #f1f5f3;   /* cabeceras de tabla, etiquetas de turno, encabezados de modal */
+    --color-fondo-pasado: #e4e9e6;  /* días ya pasados: texto suave 5.19:1, texto 12.98:1 */
+    --color-fondo-fuera: #f4f7f5;   /* días de otro mes y opciones deshabilitadas: texto suave 5.91:1 */
+    --color-borde-fuerte: #6b7c74;  /* borde que identifica un control (4.41:1 sobre blanco, WCAG 1.4.11) */
     --radio: 10px;
     --radio-lg: 16px;
     --sombra: 0 2px 8px -2px rgba(27, 77, 62, 0.06);
@@ -86,6 +95,8 @@ h3,
 .form-select:focus,
 .page-link:focus-visible,
 a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
 .navbar-toggler:focus-visible {
     outline: 2px solid var(--color-primario-oscuro);
     outline-offset: 2px;
@@ -246,15 +257,16 @@ a:focus-visible,
 }
 
 .alerta--info {
-    background: #e7f1f8;
-    border-color: #1f5f8b;
-    color: #1f5f8b;
+    background: var(--color-info-fondo);
+    border-color: var(--color-info);
+    color: var(--color-info);
 }
 
+/* #8f5e05 sobre #fef7e8: 5.22:1 */
 .alerta--aviso {
-    background: #fff4d6;
-    border-color: #8a5a00;
-    color: #8a5a00;
+    background: var(--color-aviso-fondo);
+    border-color: var(--color-aviso);
+    color: var(--color-aviso);
 }
 
 .credenciales {
@@ -363,8 +375,8 @@ a:focus-visible,
 }
 
 .indicador--pendiente .indicador__icono {
-    background: #fff4d6;
-    color: #8a5a00;
+    background: var(--color-aviso-fondo);
+    color: var(--color-aviso);
 }
 
 .indicador--baja {
@@ -553,7 +565,7 @@ a:focus-visible,
     border-radius: 999px;
     font-weight: 600;
     font-size: 0.82rem;
-    background: #f1f5f3;
+    background: var(--color-fondo-suave);
     color: var(--color-texto);
     border: 1px solid var(--color-borde);
     border-left: 4px solid var(--color-turno, var(--color-primario-oscuro));
@@ -609,64 +621,41 @@ a:focus-visible,
 }
 
 /* ==========================================================
-   9. PLANIFICADOR SEMANAL Y MENSUAL (CUADRÍCULA)
+   9. PLANIFICADOR MENSUAL (COBERTURA, FILAS DE TURNO Y CARGA HORARIA)
    ========================================================== */
-.cuadricula {
-    table-layout: fixed;
-    width: 100%;
+
+/* Selector de sector: el activo se marca con fondo suave, borde, peso y aria-current (no solo color).
+   #13392e sobre #e2efe9: 10.75:1 */
+.selector-sector .btn {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
 }
 
-.cuadricula th:first-child {
-    width: 8.5rem;
-}
-
-.cuadricula .cobertura {
-    white-space: normal;
-}
-
-.cuadricula td,
-.cuadricula th {
-    padding: 0.5rem;
-}
-
-.celda-turno__nombres li {
-    line-height: 1.3;
-    margin-bottom: 0.15rem;
-}
-
-.cuadricula__hoy {
-    background: #d7ebe3 !important;
-}
-
-.cuadricula__pasado {
-    background: #e4e9e6 !important;
-}
-
-.cuadricula__hoy a:not(.btn),
-.dia-planificador--hoy a:not(.btn) {
+.selector-sector .btn[aria-current="page"] {
+    background: var(--color-primario-suave);
+    border-color: var(--color-primario-oscuro);
     color: var(--color-primario-hover);
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px var(--color-primario-oscuro);
 }
 
-.dia-planificador--pasado>summary {
-    cursor: pointer;
-    background: #e4e9e6;
-    border-radius: var(--radio);
+.tp-leyenda__titulo {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-texto-suave);
 }
 
-.dia-planificador--pasado[open]>summary {
-    border-bottom: 1px solid var(--color-borde);
-    border-radius: var(--radio) var(--radio) 0 0;
+.etiqueta-turno__horario {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--color-texto-suave);
 }
 
-.dia-planificador--hoy {
-    border-color: var(--color-primario-oscuro) !important;
-    border-width: 2px !important;
-}
-
-.dia-planificador--hoy>h2 {
-    background: #d7ebe3;
-}
-
+/* Estados de cobertura (DESIGN 4.8): ícono + texto + texto oculto completo */
 .cobertura {
     display: inline-flex;
     align-items: center;
@@ -678,23 +667,128 @@ a:focus-visible,
     white-space: nowrap;
 }
 
+/* #155e44 sobre #e8f6f0: 6.95:1 */
 .cobertura--ok {
     background: var(--color-ok-fondo);
     color: var(--color-ok);
 }
 
+/* #8f5e05 sobre #fef7e8: 5.22:1 */
 .cobertura--parcial {
-    background: #fff4d6;
-    color: #8a5a00;
+    background: var(--color-aviso-fondo);
+    color: var(--color-aviso);
 }
 
+/* #a42626 sobre #fdf0f0: 6.55:1 */
 .cobertura--vacio {
     background: var(--color-error-fondo);
     color: var(--color-error);
 }
 
+/* Fila de un tipo de turno dentro de un día (parcial planificador/_celda.php) */
+.tp-shift-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    padding: 0.3rem 0.3rem 0.3rem 0.5rem;
+    border-radius: 6px;
+    background: var(--color-fondo);
+    border: 1px solid var(--color-borde-suave);
+    border-left: 4px solid var(--color-turno, var(--color-primario-oscuro));
+}
+
+.tp-shift-row__info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.tp-shift-row__nombre {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-texto);
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.tp-shift-row__horario {
+    font-size: 0.78rem;
+    color: var(--color-texto-suave);
+}
+
+.tp-shift-row .cobertura {
+    white-space: normal;
+}
+
+/* Botón "+" para asignar: 44 x 44 px; la versión con texto se usa en la lista por día */
+.tp-shift-row__btn-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    gap: 0.35rem;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 0.5rem;
+    border: 1px solid var(--color-borde-fuerte);
+    border-radius: 8px;
+    background: var(--color-blanco);
+    color: var(--color-primario-oscuro);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.tp-shift-row__btn-add:hover {
+    background: var(--color-primario-oscuro);
+    border-color: var(--color-primario-oscuro);
+    color: var(--color-blanco);
+}
+
+.tp-shift-row__btn-add .bi {
+    font-size: 1.1rem;
+}
+
+/* Resumen de carga horaria (tarjetas que abren la ficha del enfermero/a) */
+.tp-carga-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    width: 100%;
+    height: 100%;
+    min-height: 44px;
+    padding: 0.75rem;
+    text-align: left;
+    color: var(--color-texto);
+    background: var(--color-blanco);
+    border: 1px solid var(--color-borde-suave);
+    border-radius: var(--radio);
+}
+
+.tp-carga-item:hover {
+    border-color: var(--color-primario);
+    background: var(--color-fondo);
+}
+
+.tp-carga-item__nombre {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.tp-carga-item__datos {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+    font-size: 0.85rem;
+    color: var(--color-texto-suave);
+}
+
 .carga-semana .progress {
     height: 0.5rem;
+    background: var(--color-fondo-pasado);
 }
 
 .carga-semana--ok .progress-bar {
@@ -702,24 +796,11 @@ a:focus-visible,
 }
 
 .carga-semana--alto .progress-bar {
-    background-color: #8a5a00;
+    background-color: var(--color-aviso);
 }
 
 .carga-semana--completo .progress-bar {
     background-color: var(--color-error);
-}
-
-.carga-semana--completo {
-    background: var(--color-error-fondo);
-}
-
-.celda-turno__quitar {
-    line-height: 1;
-    vertical-align: baseline;
-}
-
-.celda-turno__quitar:hover {
-    color: #8e1c1c !important;
 }
 
 /* ==========================================================
@@ -788,30 +869,68 @@ a:focus-visible,
     background: #d7ebe3;
 }
 
-/* Día de HOY unificado Sage & Pine en Mi Cronograma del Enfermero */
-.table-primary,
-td.bg-primary-subtle,
-td[class*="border-primary"] {
-    background-color: var(--color-blanco) !important;
-    border-color: var(--color-primario-oscuro) !important;
-    box-shadow: inset 0 0 0 2px var(--color-primario-oscuro) !important;
+/* Marca de hora extra "HE" (texto completo oculto para lectores de pantalla). #6d4a00 sobre #fdf0d5 */
+.badge-extra {
+    display: inline-block;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    border: 1px solid #e9c97f;
+    background: #fdf0d5;
+    color: #6d4a00;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.4;
+    vertical-align: middle;
+}
+
+/* Calendario mensual de Mi cronograma (desde 1200 px). Sin opacidad: los dias de otro mes usan gris pleno. */
+/* El fondo va por --bs-table-bg: Bootstrap pinta las celdas con esa variable y taparia un background comun. */
+.tp-calendario td.tp-calendario__dia {
+    height: 7.5rem;
     --bs-table-bg: var(--color-blanco);
-    --bs-table-accent-bg: var(--color-blanco);
-    --bs-border-color: var(--color-primario-oscuro);
 }
 
-td .badge.bg-primary {
-    background-color: var(--color-primario-oscuro) !important;
-    color: var(--color-blanco) !important;
+.tp-calendario td.tp-calendario__dia--fuera {
+    --bs-table-bg: var(--color-fondo-fuera, #f4f7f5);
 }
 
-td .text-primary {
-    color: var(--color-primario-oscuro) !important;
+.tp-calendario td.tp-calendario__dia--hoy {
+    box-shadow: inset 0 0 0 2px var(--color-primario-oscuro);
+}
+
+.tp-calendario__numero {
+    font-weight: 700;
+    font-size: 0.875rem;
+}
+
+.tp-calendario__dia--fuera .tp-calendario__numero {
+    color: var(--color-texto-suave);
+    font-weight: 400;
+}
+
+.tp-calendario__nota {
+    font-size: 0.8rem;
+    color: var(--color-texto-suave);
+}
+
+.tp-calendario__sector {
+    font-size: 0.8rem;
     font-weight: 600;
+    margin-top: 0.25rem;
+}
+
+.tp-calendario__turno {
+    border: 1px solid var(--color-borde-suave);
+    border-radius: 6px;
+    padding: 0.35rem;
+    margin-bottom: 0.35rem;
+    background: var(--color-blanco);
 }
 
 /* ==========================================================
-   11. CALENDARIO MENSUAL SAGE & PINE (PANEL, PLANIFICADOR Y MODAL)
+   11. CALENDARIO MENSUAL SAGE & PINE (PANEL Y PLANIFICADOR)
+   La tabla se muestra desde 1400 px en el Planificador (d-xxl) y desde 1200 px en el Panel (d-xl);
+   debajo, la lista por día (.dia-lista).
    ========================================================== */
 .tp-panel-card {
     background: var(--color-blanco);
@@ -820,6 +939,7 @@ td .text-primary {
     box-shadow: var(--sombra);
 }
 
+/* Tabla mensual (la comparte Mi cronograma) */
 .tp-calendario {
     table-layout: fixed;
     width: 100%;
@@ -827,7 +947,7 @@ td .text-primary {
 }
 
 .tp-calendario thead th {
-    background-color: #f1f5f3;
+    background-color: var(--color-fondo-suave);
     color: var(--color-texto);
     font-weight: 600;
     font-size: 0.82rem;
@@ -838,89 +958,99 @@ td .text-primary {
 .tp-calendario td {
     padding: 0.55rem;
     vertical-align: top;
-    border: 1px solid #c5d1cb !important;
-    transition: background-color 120ms ease-out;
+    border: 1px solid var(--color-borde) !important;
 }
 
-/* Celda normal */
-.tp-celda-dia {
-    cursor: pointer;
+/* Sábado y domingo: #1b4d3e sobre #f1f5f3, 8.77:1 */
+.tp-calendario thead th.cal-mes__finde {
+    color: var(--color-primario-oscuro);
+}
+
+/* Celdas del día: el fondo va por --bs-table-bg porque .table pinta cada celda con esa variable */
+.tp-calendario td.tp-celda-dia {
+    --bs-table-bg: var(--color-blanco);
+}
+
+.tp-calendario td.tp-celda-dia--fuera {
+    --bs-table-bg: var(--color-fondo-fuera);
+    color: var(--color-texto-suave);
+}
+
+.tp-calendario td.tp-celda-dia--pasado {
+    --bs-table-bg: var(--color-fondo-pasado);
+}
+
+/* Hoy: marco de 2 px (reemplaza la sombra interna con la que Bootstrap pinta las celdas) */
+.tp-calendario td.tp-celda-dia--hoy {
+    box-shadow: inset 0 0 0 2px var(--color-primario-oscuro);
+}
+
+.tp-celda-dia--pasado .tp-shift-row,
+.tp-celda-dia--pasado .tp-turno-pill {
     background: var(--color-blanco);
 }
 
-.tp-celda-dia:hover {
-    background: #f1f5f3;
+.tp-celda-dia__turnos {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
-.tp-celda-dia:focus-visible {
-    outline: 2px solid var(--color-primario-oscuro);
-    outline-offset: -2px;
+/* Botón "Ver día N" que abre el panel lateral (Planificador) */
+.tp-celda-dia__abrir {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    width: 100%;
+    min-height: 44px;
+    margin-bottom: 0.35rem;
+    padding: 0.25rem 0.35rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-texto);
+    text-align: left;
 }
 
-/* Celda fuera del mes actual */
-.tp-celda-dia--fuera {
-    background: #f4f7f5;
+.tp-celda-dia__abrir:hover {
+    background: var(--color-primario-suave);
+    border-color: var(--color-borde);
+}
+
+.tp-celda-dia__ver {
+    font-size: 0.75rem;
     color: var(--color-texto-suave);
+    white-space: nowrap;
 }
 
-/* Celdas de días ya pasados (apagadas tanto en Panel como en Planificador) */
-.tp-celda-dia--pasado,
-.tp-calendario td.bg-light-subtle {
-    background: #e4e9e6 !important;
-    color: var(--color-texto-suave);
+/* Celda del Panel: toda la celda es un único botón (sin controles anidados) */
+.tp-calendario td.tp-celda-dia--con-boton {
+    padding: 0;
 }
 
-.tp-celda-dia--pasado .tp-num-dia,
-.tp-calendario td.bg-light-subtle .tp-num-dia {
-    color: var(--color-texto-suave);
+.tp-celda-dia__boton {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    width: 100%;
+    min-height: 7.5rem;
+    padding: 0.55rem;
+    border: 0;
+    background: transparent;
+    color: var(--color-texto);
+    text-align: left;
 }
 
-.tp-celda-dia--pasado .tp-turno-pill,
-.tp-calendario td.bg-light-subtle .tp-turno-pill {
-    background: #d9e0dc;
-    border-color: #c8d2cc;
+.tp-celda-dia__boton:hover {
+    background: var(--color-fondo-suave);
 }
 
-.tp-calendario td.bg-light-subtle .border.rounded,
-.tp-calendario td.bg-light-subtle .card {
-    background-color: #edf1ef !important;
-    border-color: #cfd8d3 !important;
-}
-
-/* Celda del día de HOY unificada Sage & Pine (fondo blanco como días futuros + marco verde pino) */
-.tp-celda-dia--hoy {
-    background: var(--color-blanco) !important;
-    box-shadow: inset 0 0 0 2px var(--color-primario-oscuro) !important;
-    color: var(--color-texto) !important;
-}
-
-.tp-celda-dia--hoy:hover {
-    background: #f1f5f3 !important;
-}
-
-.tp-celda-dia--hoy .tp-num-dia {
-    background: var(--color-primario-oscuro) !important;
-    color: var(--color-blanco) !important;
-    font-weight: 700;
-}
-
-.tp-celda-dia--hoy .badge[style*="background"] {
-    background: transparent !important;
-    color: var(--color-primario-oscuro) !important;
-    font-weight: 700;
-    padding-left: 0.25rem;
-    padding-right: 0.25rem;
-}
-
-.tp-celda-dia--hoy .tp-turno-pill,
-.tp-celda-dia--hoy .border.rounded-3,
-.tp-celda-dia--hoy .border.rounded,
-.tp-celda-dia--hoy .card {
-    background-color: #f1f5f3 !important;
-    border-top-color: var(--color-borde-suave) !important;
-    border-right-color: var(--color-borde-suave) !important;
-    border-bottom-color: var(--color-borde-suave) !important;
-    color: var(--color-texto) !important;
+.tp-celda-dia__boton:focus-visible {
+    outline-offset: -3px;
 }
 
 /* Número del día */
@@ -928,181 +1058,296 @@ td .text-primary {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 0.25rem;
+    border-radius: 999px;
     font-family: "Wix Madefor Display", sans-serif;
     font-weight: 600;
-    font-size: 0.82rem;
+    font-size: 0.85rem;
     color: var(--color-texto);
-    transition: background-color 120ms ease-out, color 120ms ease-out;
 }
 
-.tp-celda-dia:hover .tp-num-dia {
-    background: var(--color-primario-suave);
-    color: var(--color-primario-oscuro);
+.tp-celda-dia--hoy .tp-num-dia,
+.dia-lista--hoy .tp-num-dia {
+    background: var(--color-primario-oscuro);
+    color: var(--color-blanco);
 }
 
-/* Pastilla compacta de cada turno */
+/* Pastilla de turno del Panel (solo lectura) */
 .tp-turno-pill {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 0.35rem;
-    padding: 0.28rem 0.45rem;
-    border-radius: 8px;
-    background: #f1f5f3;
+    gap: 0.2rem 0.35rem;
+    padding: 0.3rem 0.45rem;
+    border-radius: 6px;
+    background: var(--color-fondo);
     border: 1px solid var(--color-borde-suave);
-    border-left: 3.5px solid var(--color-turno, var(--color-primario-oscuro));
-    font-size: 0.74rem;
+    border-left: 4px solid var(--color-turno, var(--color-primario-oscuro));
+    font-size: 0.8rem;
 }
 
 .tp-turno-pill__nombre {
     font-weight: 600;
     color: var(--color-texto);
+    overflow-wrap: anywhere;
 }
 
-.tp-turno-pill__cupo {
-    font-family: "Source Code Pro", monospace;
-    font-size: 0.68rem;
+.tp-turno-pill .cobertura {
+    white-space: normal;
+}
+
+/* Dentro de la tabla mensual las columnas son angostas: chip más compacto (mismo texto, mismos colores) */
+.tp-calendario .cobertura {
+    gap: 0.2rem;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.75rem;
+}
+
+/* Lista por día (debajo del ancho de la tabla) */
+.dia-lista {
+    background: var(--color-blanco);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio);
+}
+
+.dia-lista--hoy {
+    border: 2px solid var(--color-primario-oscuro);
+}
+
+.dia-lista--pasado {
+    background: var(--color-fondo-pasado);
+}
+
+.dia-lista__cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--color-borde-suave);
+}
+
+.dia-lista__titulo {
+    margin: 0;
+    font-size: 1rem;
     font-weight: 600;
-    padding: 0.08rem 0.38rem;
-    border-radius: 999px;
+}
+
+.dia-lista__cuerpo {
+    padding: 0.5rem;
+}
+
+/* En el Panel, cada día de la lista es un único botón */
+.dia-lista__boton {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-texto);
+    text-align: left;
+    border-radius: inherit;
+}
+
+.dia-lista__boton:hover {
+    background: var(--color-fondo-suave);
+}
+
+.plan-dias-anteriores > summary {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 44px;
+    padding: 0 0.75rem;
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio);
+    background: var(--color-fondo-pasado);
+    color: var(--color-primario-oscuro);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.plan-dias-anteriores[open] > summary {
+    margin-bottom: 0.5rem;
+}
+
+/* Navegación de meses: sin cortes de línea; en celular, menos relleno para que entren los tres botones */
+.nav-mes .btn {
     white-space: nowrap;
 }
 
-.tp-cupo--ok {
-    background: var(--color-ok-fondo);
-    color: var(--color-ok);
-    border: 1px solid rgba(21, 94, 68, 0.2);
+@media (max-width: 399.98px) {
+    .nav-mes .btn {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
 }
 
-.tp-cupo--parcial {
-    background: var(--color-aviso-fondo);
-    color: var(--color-aviso);
-    border: 1px solid rgba(143, 94, 5, 0.25);
+/* "Ver hoy" del Panel: #13392e sobre #e2efe9, 10.75:1 */
+.btn-ver-hoy {
+    --bs-btn-color: var(--color-primario-hover);
+    --bs-btn-bg: var(--color-primario-suave);
+    --bs-btn-border-color: var(--color-primario-oscuro);
+    --bs-btn-hover-color: var(--color-blanco);
+    --bs-btn-hover-bg: var(--color-primario-oscuro);
+    --bs-btn-hover-border-color: var(--color-primario-oscuro);
+    --bs-btn-active-color: var(--color-blanco);
+    --bs-btn-active-bg: var(--color-primario-hover);
+    --bs-btn-active-border-color: var(--color-primario-hover);
+    min-height: 44px;
+    font-weight: 600;
 }
 
-.tp-cupo--vacio {
-    background: var(--color-error-fondo);
-    color: var(--color-error);
-    border: 1px solid rgba(164, 38, 38, 0.2);
+/* ==========================================================
+   12. PANEL LATERAL DEL DÍA, MODALES Y FICHA DEL ENFERMERO/A
+   ========================================================== */
+.tp-drawer {
+    --bs-offcanvas-width: 440px;
 }
 
-/* Tarjeta de enfermero dentro del modal */
-.tp-enfermero-card {
+.tp-modal-cabecera {
+    background: var(--color-fondo-suave);
+}
+
+.tp-modal-cuerpo {
+    background: var(--color-fondo);
+}
+
+.tp-icono-circulo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--color-primario-oscuro);
+    color: var(--color-blanco);
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+/* Resumen de dotación del día: #1b4d3e sobre #e2efe9, 8.15:1 */
+.tp-resumen-dia {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radio);
+    background: var(--color-primario-suave);
+    border: 1px solid var(--color-borde);
+    color: var(--color-primario-oscuro);
+    font-weight: 600;
+}
+
+/* Bloque de un tipo de turno en el panel lateral o en el detalle del día */
+.tp-turno-bloque {
+    padding: 0.75rem;
+    border-radius: var(--radio);
     background: var(--color-blanco);
     border: 1px solid var(--color-borde-suave);
-    border-radius: 10px;
-    padding: 0.65rem 0.75rem;
-    box-shadow: 0 1px 3px rgba(27, 77, 62, 0.04);
+    border-left: 4px solid var(--color-turno, var(--color-primario-oscuro));
+}
+
+.tp-turno-bloque__cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-borde-suave);
+}
+
+.tp-turno-bloque__vacio {
+    padding: 0.5rem;
+    border: 1px dashed var(--color-borde);
+    border-radius: 6px;
+    background: var(--color-fondo);
+    color: var(--color-texto-suave);
+    font-size: 0.875rem;
+}
+
+.tp-enfermero-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 8px;
+    background: var(--color-blanco);
+    border: 1px solid var(--color-borde-suave);
+}
+
+.tp-enfermero-fila__nombre {
+    font-weight: 600;
+    overflow-wrap: anywhere;
 }
 
 .tp-matricula {
     font-family: "Source Code Pro", monospace;
+    font-size: 0.8rem;
+    color: var(--color-texto-suave);
+}
+
+/* Botón solo con ícono (lleva siempre texto visually-hidden): 44 x 44 px */
+.btn-icono {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+}
+
+/* Datos de la ficha del enfermero/a */
+.tp-dato {
+    height: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radio);
+    background: var(--color-blanco);
+    border: 1px solid var(--color-borde-suave);
+}
+
+.tp-dato__etiqueta {
     font-size: 0.78rem;
     color: var(--color-texto-suave);
 }
 
-/* Quita la segunda barra de scroll interna en la tabla del planificador */
-.card-body .table-responsive {
-    overflow-x: visible;
-}
-
-.card-body .table-responsive>table {
-    width: 100% !important;
-    min-width: 0 !important;
-    table-layout: fixed;
-}
-
-/* ==========================================================
-   12. FILAS ESBELTAS Y DRAWER LATERAL
-   ========================================================== */
-.tp-shift-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.35rem;
-    padding: 0.32rem 0.5rem;
-    border-radius: 6px;
-    background: #f8faf9;
-    border: 1px solid var(--color-borde-suave);
-    border-left: 3.5px solid var(--color-turno, var(--color-primario-oscuro));
-    transition: border-left-width 120ms ease-out, background-color 120ms ease-out;
-}
-
-.tp-shift-row:hover {
-    background: #f1f5f3;
-    border-left-width: 5px;
-}
-
-.tp-celda-dia--pasado .tp-shift-row {
-    background: rgba(255, 255, 255, 0.72);
-    border-color: #cfd8d3;
-}
-
-.tp-celda-dia--hoy .tp-shift-row {
-    background: #ffffff;
-    border-color: rgba(27, 77, 62, 0.22);
-}
-
-.tp-shift-row__nombre {
-    font-size: 0.75rem;
+.tp-dato__valor {
     font-weight: 600;
-    color: var(--color-texto);
-    line-height: 1.2;
+    overflow-wrap: anywhere;
 }
 
-.tp-shift-row__btn-add {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #e7ede9;
-    color: var(--color-texto-suave);
-    text-decoration: none;
-    font-size: 0.75rem;
-    transition: background-color 120ms ease-out, color 120ms ease-out;
+.tp-dato--destacado {
+    background: var(--color-primario-suave);
+    border-color: var(--color-borde);
 }
 
-.tp-shift-row__btn-add:hover {
-    background: var(--color-primario-oscuro);
-    color: var(--color-blanco);
+.tp-dato--destacado .tp-dato__valor {
+    color: var(--color-primario-oscuro);
 }
 
-/* Avatares apilados con iniciales */
-.tp-avatar-stack {
-    display: inline-flex;
-    align-items: center;
+/* #8f5e05 sobre #fef7e8: 5.22:1 */
+.tp-dato--extra {
+    background: var(--color-aviso-fondo);
+    border-color: var(--color-aviso);
 }
 
-.tp-avatar-stack__item {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    font-size: 0.6rem;
-    font-weight: 700;
-    color: var(--color-blanco);
-    background: var(--color-primario);
-    border: 1.5px solid var(--color-blanco);
-    margin-left: -4px;
-}
-
-.tp-avatar-stack__item:first-child {
-    margin-left: 0;
-}
-
-.tp-avatar-stack__item--extra {
-    background: #6d5016;
+.tp-dato--extra .tp-dato__etiqueta,
+.tp-dato--extra .tp-dato__valor {
+    color: var(--color-aviso);
 }
 
 /* ==========================================================
-   13. SELECTOR VISUAL DE ENFERMEROS Y FILTROS DEL PLANIFICADOR
+   13. SELECTOR DE ENFERMEROS/AS (RADIOS REALES) Y FILTROS
    ========================================================== */
 .tp-filtro-barra {
     background: var(--color-fondo);
@@ -1110,120 +1355,249 @@ td .text-primary {
     border-radius: var(--radio);
 }
 
+.tp-filtro-barra .form-control,
+.tp-filtro-barra .form-select {
+    min-height: 44px;
+}
+
+.selector-enfermeros > legend {
+    float: none;
+    width: auto;
+    font-size: 1rem;
+}
+
 .tp-enfermeros-scroll {
-    max-height: 380px;
+    max-height: 420px;
     overflow-y: auto;
-    padding-right: 4px;
+    padding: 5px 6px 5px 5px; /* deja lugar al contorno de foco (2 px + 2 px de separación) */
 }
 
 .tp-enfermeros-scroll::-webkit-scrollbar {
-    width: 6px;
+    width: 8px;
 }
 
 .tp-enfermeros-scroll::-webkit-scrollbar-track {
-    background: #f1f4f2;
+    background: var(--color-fondo-suave);
     border-radius: 4px;
 }
 
 .tp-enfermeros-scroll::-webkit-scrollbar-thumb {
-    background: #c2cfc7;
+    background: var(--color-borde-fuerte);
     border-radius: 4px;
 }
 
-.tp-enfermeros-scroll::-webkit-scrollbar-thumb:hover {
-    background: var(--color-primario);
+.tp-enfermero-item + .tp-enfermero-item {
+    margin-top: 0.5rem;
 }
 
+/* La opción es el <label> de un <input type="radio" class="btn-check">: foco, flechas,
+   disabled y required los resuelve el navegador. En celular se apila en columna. */
 .tp-enfermero-opcion {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.75rem 0.9rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    padding: 0.75rem;
     background: var(--color-blanco);
-    border: 1.5px solid var(--color-borde-suave);
+    border: 1.5px solid var(--color-borde);
     border-radius: var(--radio);
+    color: var(--color-texto);
     cursor: pointer;
-    transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
-    user-select: none;
+}
+
+@media (min-width: 576px) {
+    .tp-enfermero-opcion {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
 }
 
 .tp-enfermero-opcion:hover {
     border-color: var(--color-primario);
-    background-color: #fbfdfc;
-    box-shadow: 0 2px 6px rgba(27, 77, 62, 0.06);
+    background: var(--color-fondo);
 }
 
-.tp-enfermero-opcion:focus-visible {
+.tp-enfermero-opcion__principal {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.tp-enfermero-opcion__cuerpo {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.tp-enfermero-opcion__nombre {
+    display: block;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.tp-enfermero-opcion__datos {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+    margin-top: 0.15rem;
+    font-size: 0.85rem;
+    color: var(--color-texto-suave);
+}
+
+.tp-enfermero-opcion__estado {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+@media (min-width: 576px) {
+    .tp-enfermero-opcion__estado {
+        flex-shrink: 0;
+        justify-content: flex-end;
+        max-width: 50%;
+    }
+}
+
+.btn-check:checked + .tp-enfermero-opcion {
+    border-color: var(--color-primario-oscuro);
+    background: var(--color-primario-suave);
+    box-shadow: 0 0 0 1px var(--color-primario-oscuro);
+}
+
+.btn-check:focus-visible + .tp-enfermero-opcion {
     outline: 2px solid var(--color-primario-oscuro);
     outline-offset: 2px;
 }
 
-.tp-enfermero-opcion.is-selected {
-    border-color: var(--color-primario-oscuro) !important;
-    background-color: var(--color-primario-suave) !important;
-    box-shadow: 0 0 0 1px var(--color-primario-oscuro);
-}
-
-.tp-enfermero-opcion.is-disabled {
-    opacity: 0.6;
-    background-color: #f7f9f8;
-    cursor: not-allowed;
+/* Deshabilitada: sin opacidad, fondo gris pleno y borde punteado (texto suave 5.91:1) */
+.btn-check:disabled + .tp-enfermero-opcion {
+    background: var(--color-fondo-fuera);
     border-style: dashed;
+    border-color: var(--color-borde-fuerte);
+    box-shadow: none;
+    cursor: not-allowed;
 }
 
-.tp-enfermero-opcion.is-disabled:hover {
-    border-color: var(--color-borde-suave);
-    background-color: #f7f9f8;
-    box-shadow: none;
+.selector-enfermeros.is-invalid .tp-enfermeros-scroll {
+    outline: 2px solid var(--color-error);
+    outline-offset: 2px;
+    border-radius: var(--radio);
 }
 
 .tp-avatar-circulo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     font-weight: 700;
     font-size: 0.85rem;
-    background: #eef5f1;
+    background: var(--color-primario-suave);
     color: var(--color-primario-oscuro);
-    border: 1px solid rgba(27, 77, 62, 0.15);
-    flex-shrink: 0;
+    border: 1px solid var(--color-borde);
 }
 
-.tp-enfermero-opcion.is-selected .tp-avatar-circulo {
+.btn-check:checked + .tp-enfermero-opcion .tp-avatar-circulo {
     background: var(--color-primario-oscuro);
     color: var(--color-blanco);
     border-color: var(--color-primario-oscuro);
 }
 
+/* Círculo de selección: borde 4.41:1 (WCAG 1.4.11); elegido, tilde blanca sobre verde pino */
 .tp-check-circulo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    border: 2px solid var(--color-borde);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.8rem;
-    color: transparent;
+    border: 2px solid var(--color-borde-fuerte);
     background: var(--color-blanco);
-    flex-shrink: 0;
-    transition: all 140ms ease;
+    color: transparent;
+    font-size: 0.8rem;
 }
 
-.tp-enfermero-opcion.is-selected .tp-check-circulo {
+.btn-check:checked + .tp-enfermero-opcion .tp-check-circulo {
     background: var(--color-primario-oscuro);
     border-color: var(--color-primario-oscuro);
     color: var(--color-blanco);
 }
 
-.tp-badge-especialidad {
-    font-size: 0.72rem;
-    font-weight: 500;
-    background: #edf3f0;
-    color: var(--color-texto);
-    border: 1px solid #d5e0d9;
+.btn-check:disabled + .tp-enfermero-opcion .tp-check-circulo {
+    background: var(--color-fondo-pasado);
 }
+
+.tp-badge-especialidad {
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: var(--color-fondo-suave);
+    color: var(--color-texto);
+    border: 1px solid var(--color-borde);
+}
+
+/* Disponibilidad para el turno: siempre ícono + texto */
+.estado-disponibilidad {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: normal;
+}
+
+/* #155e44 sobre #e8f6f0: 6.95:1 */
+.estado-disponibilidad--disponible {
+    background: var(--color-ok-fondo);
+    color: var(--color-ok);
+}
+
+/* #8f5e05 sobre #fef7e8: 5.22:1 */
+.estado-disponibilidad--extra {
+    background: var(--color-aviso-fondo);
+    color: var(--color-aviso);
+}
+
+/* #1a2420 sobre #e4e9e6: 12.98:1 */
+.estado-disponibilidad--no-disponible {
+    background: var(--color-fondo-pasado);
+    color: var(--color-texto);
+}
+
+/* #1f5f8b sobre #e7f1f8: 5.98:1 */
+.estado-disponibilidad--actual {
+    background: var(--color-info-fondo);
+    color: var(--color-info);
+}
+
+.tp-seleccionado {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio);
+    background: var(--color-blanco);
+}
+
+/* Tabla de sectores (desde 1200 px): anchos fijos por columna, sin style inline en la vista */
+.tabla-sectores {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.tabla-sectores th:nth-child(1) { width: 45%; }
+.tabla-sectores th:nth-child(2) { width: 15%; }
+.tabla-sectores th:nth-child(3) { width: 18%; }
+.tabla-sectores th:nth-child(4) { width: 10%; }
+.tabla-sectores th:nth-child(5) { width: 12%; }

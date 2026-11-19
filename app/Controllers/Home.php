@@ -14,16 +14,10 @@ use DateTimeImmutable;
 
 /**
  * Panel general del Administrador (HU-02: destino del rol ADMIN tras el login).
- * Muestra métricas del plantel, alertas de cobertura y calendario mensual de solo visualización por zona.
+ * Muestra métricas del plantel, alertas de cobertura y calendario mensual de solo visualización por sector.
  */
 class Home extends BaseController
 {
-    private const MESES = [
-        1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
-        5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
-        9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
-    ];
-
     public function index(): string|RedirectResponse
     {
         if (session()->get('rol') !== 'ADMIN') {
@@ -33,7 +27,7 @@ class Home extends BaseController
         $usuarioModelo = new UsuarioModel();
         $sectores      = (new SectorModel())->activos();
 
-        // Zona seleccionada por botón (?sector=ID), por defecto la primera
+        // Sector seleccionado por botón (?sector=ID), por defecto la primera
         $sector = null;
         $pedido = (int) $this->textoGet('sector');
         foreach ($sectores as $s) {
@@ -43,7 +37,7 @@ class Home extends BaseController
         }
         $sector ??= $sectores[0] ?? null;
 
-        // Tipos de turno activos de esa zona
+        // Tipos de turno activos de ese sector
         $tipos = $sector instanceof Sector
             ? (new TipoTurnoModel())->activosPorSector((int) $sector->id)
             : [];
@@ -57,17 +51,7 @@ class Home extends BaseController
         $hoy       = date('Y-m-d');
 
         // Matriz de semanas (Lunes a Domingo) para dibujar la cuadrícula mensual
-        $cursor  = new DateTimeImmutable(AsignacionModel::lunesDe($primerDia->format('Y-m-d')));
-        $finCal  = (new DateTimeImmutable(AsignacionModel::lunesDe($ultimoDia->format('Y-m-d'))))->modify('+6 days');
-        $semanas = [];
-        while ($cursor <= $finCal) {
-            $fila = [];
-            for ($i = 0; $i < 7; $i++) {
-                $fila[] = $cursor->modify("+{$i} days")->format('Y-m-d');
-            }
-            $semanas[] = $fila;
-            $cursor    = $cursor->modify('+7 days');
-        }
+        $semanas = AsignacionModel::semanasDelMes($anioMes);
 
         $grilla = $sector instanceof Sector
             ? (new AsignacionModel())->mesDeSector((int) $sector->id, $anioMes)
@@ -110,7 +94,7 @@ class Home extends BaseController
             'sector'           => $sector,
             'tipos'            => $tipos,
             'anioMes'          => $anioMes,
-            'nombreMes'        => self::MESES[(int) $primerDia->format('n')] . ' ' . $primerDia->format('Y'),
+            'nombreMes'        => AsignacionModel::nombreMes($anioMes),
             'semanas'          => $semanas,
             'anteriorMes'      => $primerDia->modify('-1 month')->format('Y-m'),
             'siguienteMes'     => $primerDia->modify('+1 month')->format('Y-m'),

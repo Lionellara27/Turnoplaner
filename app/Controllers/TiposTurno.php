@@ -51,7 +51,7 @@ class TiposTurno extends BaseController
         return view('admin/tipos_turno/create', [
             'titulo'   => 'Nuevo tipo de turno - TurnoPlaner',
             'paleta'   => TipoTurnoModel::PALETA,
-            'sectores' => $this->sectorModelo->where('estado', 'ACTIVO')->orderBy('nombre', 'ASC')->findAll(),
+            'sectores' => $this->sectorModelo->paraFormularioTipoTurno(),
         ]);
     }
 
@@ -79,20 +79,13 @@ class TiposTurno extends BaseController
     {
         $tipo = $this->buscar($id);
 
-        // Traemos sectores activos (y si el sector actual del turno estuviera dado de baja, lo incluimos igual para no perder la selección)
-        $sectores = $this->sectorModelo
-            ->groupStart()
-                ->where('estado', 'ACTIVO')
-                ->orWhere('id', (int) $tipo->sector_id)
-            ->groupEnd()
-            ->orderBy('nombre', 'ASC')
-            ->findAll();
-
+        // Sectores activos y, si el sector actual del turno está dado de baja, también ese (con withDeleted:
+        // si no, find() lo ocultaría y el select perdería la selección).
         return view('admin/tipos_turno/edit', [
             'titulo'   => 'Editar tipo de turno - TurnoPlaner',
             'tipo'     => $tipo,
             'paleta'   => TipoTurnoModel::PALETA,
-            'sectores' => $sectores,
+            'sectores' => $this->sectorModelo->paraFormularioTipoTurno((int) $tipo->sector_id),
         ]);
     }
 
@@ -102,7 +95,7 @@ class TiposTurno extends BaseController
         $tipo  = $this->buscar($id);
         $datos = $this->datosRecortados();
 
-        if (($error = $this->validar($datos, $id)) !== null) {
+        if (($error = $this->validar($datos, $id, (int) $tipo->sector_id)) !== null) {
             return $error;
         }
 
@@ -114,7 +107,7 @@ class TiposTurno extends BaseController
 
         if (($cambioSector || $cambioHorario) && $this->modelo->tieneAsignacionesFuturas($id, 'tipo_turno_id')) {
             $campoError = $cambioSector ? 'sector_id' : 'hora_inicio';
-            $motivo     = $cambioSector ? 'la zona' : 'el horario';
+            $motivo     = $cambioSector ? 'el sector' : 'el horario';
 
             return $this->volverConErrores([
                 $campoError => "No se puede cambiar {$motivo} de «{$tipo->nombre}»: tiene turnos asignados desde hoy en adelante. "
@@ -167,18 +160,19 @@ class TiposTurno extends BaseController
 
     /**
      * @param array<string, mixed> $datos
+     * @param int|null             $sectorActualId en la edición, el sector que ya tenía el tipo (se puede
+     *                                             conservar aunque esté de baja)
      */
-    private function validar(array $datos, ?int $id = null): ?RedirectResponse
+    private function validar(array $datos, ?int $id = null, ?int $sectorActualId = null): ?RedirectResponse
     {
         $hora = 'regex_match[/^([01][0-9]|2[0-3]):[0-5][0-9]$/]';
 
         $reglas = [
             'sector_id' => [
-                'rules'  => 'required|is_natural_no_zero|is_not_unique[sectores.id]',
+                'rules'  => 'required|is_natural_no_zero',
                 'errors' => [
-                    'required'           => 'Debe seleccionar la zona de trabajo (sector).',
-                    'is_natural_no_zero' => 'Seleccione una zona de trabajo válida.',
-                    'is_not_unique'      => 'La zona de trabajo seleccionada no existe.',
+                    'required'           => 'Seleccione el sector.',
+                    'is_natural_no_zero' => 'Seleccione un sector válido.',
                 ],
             ],
             'nombre' => [
@@ -207,8 +201,13 @@ class TiposTurno extends BaseController
             return $this->volverConErrores($this->validator->getErrors());
         }
 
-        // Validar unicidad de nombre DENTRO del mismo sector (incluyendo dados de baja)
+        // HU-10: un sector dado de baja no se puede elegir (salvo conservar el que ya tenía al editar).
         $sectorId = (int) $datos['sector_id'];
+        if (! $this->sectorModelo->esElegibleParaTipoTurno($sectorId, $sectorActualId)) {
+            return $this->volverConErrores(['sector_id' => 'El sector seleccionado no existe o está dado de baja.']);
+        }
+
+        // Validar unicidad de nombre DENTRO del mismo sector (incluyendo dados de baja)
         $nombre   = trim((string) $datos['nombre']);
 
         $duplicado = $this->modelo->withDeleted()
@@ -221,7 +220,7 @@ class TiposTurno extends BaseController
 
         if ($duplicado->first() !== null) {
             return $this->volverConErrores([
-                'nombre' => 'Ya existe un tipo de turno con ese nombre en la zona seleccionada (si está dado de baja, búsquelo con el filtro «Dados de baja» y reactívelo).',
+                'nombre' => 'Ya existe un tipo de turno con ese nombre en ese sector (si está dado de baja, búsquelo con el filtro «Dados de baja» y reactívelo).',
             ]);
         }
 

@@ -78,6 +78,7 @@ $routes->group('admin', ['filter' => ['auth', 'role:ADMIN']], static function (R
     $routes->get('planificador', 'Planificador::index');
 
     // HU-13: asignación de turnos
+    $routes->get('asignaciones/disponibilidad', 'Asignaciones::disponibilidad'); // JSON del modal del planificador
     $routes->get('asignaciones/crear', 'Asignaciones::crear');
     $routes->post('asignaciones/crear', 'Asignaciones::guardar');
     $routes->get('asignaciones/(:id)/editar', 'Asignaciones::editar/$1');

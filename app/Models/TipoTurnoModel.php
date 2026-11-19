@@ -9,7 +9,7 @@ use App\Models\Concerns\BajaLogica;
 use CodeIgniter\Model;
 
 /**
- * Tipos de turno / franjas horarias (HU-11, HU-12), asociados a una zona/sector.
+ * Tipos de turno / franjas horarias (HU-11, HU-12), asociados a un sector.
  */
 class TipoTurnoModel extends Model
 {
@@ -41,15 +41,24 @@ class TipoTurnoModel extends Model
     protected $updatedField  = 'updated_at';
     protected $deletedField  = 'deleted_at';
 
+    /**
+     * sector_id: el sector tiene que existir y estar ACTIVO (la baja lógica pone estado = BAJA y deleted_at
+     * juntos). Al editar, save() de una entidad solo valida los campos que cambiaron, así que conservar el
+     * sector actual aunque esté de baja sigue permitido; moverlo a un sector de baja, no.
+     */
     protected $validationRules = [
         'id'               => 'permit_empty|is_natural_no_zero',
-        'sector_id'        => 'required|is_natural_no_zero|is_not_unique[sectores.id]',
+        'sector_id'        => 'required|is_natural_no_zero|is_not_unique[sectores.id,estado,ACTIVO]',
         'nombre'           => 'required|min_length[3]|max_length[60]',
         'hora_inicio'      => 'required',
         'hora_fin'         => 'required',
         'duracion_minutos' => 'required|is_natural_no_zero|less_than[1440]',
         'color'            => 'required|regex_match[/^#[0-9a-fA-F]{6}$/]',
         'estado'           => 'permit_empty|in_list[ACTIVO,BAJA]',
+    ];
+
+    protected $validationMessages = [
+        'sector_id' => ['is_not_unique' => 'El sector seleccionado no existe o está dado de baja.'],
     ];
 
     public static function calcularDuracionMinutos(string $inicio, string $fin): int
@@ -73,9 +82,15 @@ class TipoTurnoModel extends Model
         $this->select('tipos_turno.*, sectores.nombre AS sector_nombre')
             ->join('sectores', 'sectores.id = tipos_turno.sector_id', 'left');
 
-        // Filtrar por estado calificando la tabla para evitar ambigüedad con sectores.estado
-        if ($estado === 'ACTIVO' || $estado === 'BAJA') {
-            $this->where('tipos_turno.estado', $estado);
+        // La baja lógica también completa deleted_at (BajaLogica::darDeBajaSiLibre usa delete()), así que
+        // "Dados de baja" y "Todos" tienen que incluir los borrados: si no, el filtro BAJA siempre sale vacío.
+        // El estado se califica con la tabla para no chocar con sectores.estado del JOIN.
+        if ($estado === 'BAJA') {
+            $this->withDeleted()->where('tipos_turno.estado', 'BAJA');
+        } elseif ($estado === 'TODOS') {
+            $this->withDeleted();
+        } else {
+            $this->where('tipos_turno.estado', 'ACTIVO');
         }
 
         if ($sectorId !== null && $sectorId > 0) {

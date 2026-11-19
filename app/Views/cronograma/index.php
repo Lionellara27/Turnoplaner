@@ -1,7 +1,12 @@
 <?php
 /**
- * HU-17: Calendario mensual personal del enfermero/a (pantalla inicial del rol ENFERMERO).
- * Privacidad: muestra exclusivamente los turnos del usuario autenticado.
+ * HU-17: Mi cronograma (pantalla inicial del rol ENFERMERO). DESIGN.md 4.11.
+ *
+ * - Arriba, siempre: resumen Hoy / Mañana (independiente del período elegido).
+ * - Vista mes (por defecto): calendario mensual desde 1200 px y agenda por día debajo
+ *   (en el mes actual, los días ya pasados se pliegan en un <details>).
+ * - Vista semana: los 7 días, con "Sin turno asignado" en los libres.
+ * Privacidad: muestra exclusivamente los turnos del usuario autenticado (el controlador lo toma de la sesión).
  *
  * @var string                                        $vista, $periodo, $desde, $hasta, $anterior, $siguiente
  * @var bool                                          $esActual
@@ -14,14 +19,34 @@
  * @var \App\Entities\Asignacion|null                 $enCurso, $siguienteTurno
  * @var list<\App\Entities\Asignacion>                $turnosHoy, $turnosManana
  */
+use App\Models\AsignacionModel;
+
 $semanas      = $semanas ?? [];
 $minutosExtra = $minutosExtra ?? 0;
 $anioMes      = substr($desde, 0, 7);
-$urlNav       = static fn (string $fecha, string $v = ''): string => base_url('mi-cronograma') . '?' . http_build_query([
-    'vista' => $v !== '' ? $v : $vista,
-    'fecha' => $fecha,
-], '', '&amp;');
-$pieza = static fn ($t, string $parte): string => view('cronograma/_turno', ['t' => $t, 'ahora' => $ahora, 'parte' => $parte]);
+$fechaVista   = $esActual ? $hoy : $desde;
+$url          = static fn (string $v, string $f): string => base_url('mi-cronograma') . '?' . http_build_query(['vista' => $v, 'fecha' => $f], '', '&amp;');
+$pieza        = static fn ($t, string $parte): string => view('cronograma/_turno', ['t' => $t, 'ahora' => $ahora, 'parte' => $parte]);
+// Un turno del resumen: etiqueta, horario y sector, apilados (sin "·" sueltos).
+$resumen = static fn ($t): string => '<div class="d-flex flex-wrap align-items-center gap-2">' . $pieza($t, 'etiqueta')
+    . '<span>' . $pieza($t, 'horario') . '</span>'
+    . '<span><i class="bi bi-hospital me-1" aria-hidden="true"></i>' . esc((string) $t->sector_nombre) . '</span>'
+    . $pieza($t, 'extra') . '</div>';
+$caption   = 'Mis turnos, ' . mb_strtolower($periodo);
+$unidad    = $vista === 'semana' ? 'semana' : 'mes';
+$nombresDia = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+// Vista mes del mes actual: en la agenda (pantallas chicas) los días ya pasados se pliegan.
+$pasados = [];
+$resto   = $dias;
+if ($vista === 'mes' && $esActual) {
+    $pasados = array_values(array_filter($dias, static fn ($d) => $d < $hoy));
+    $resto   = array_values(array_filter($dias, static fn ($d) => $d >= $hoy));
+    if ($resto === []) {
+        [$pasados, $resto] = [[], $dias];
+    }
+}
+$datosDias = ['porDia' => $porDia, 'salidas' => $salidas, 'hoy' => $hoy, 'ahora' => $ahora, 'caption' => $caption];
 ?>
 <?= $this->extend('layouts/main') ?>
 
@@ -29,209 +54,181 @@ $pieza = static fn ($t, string $parte): string => view('cronograma/_turno', ['t'
 <div class="card shadow-sm border-0 rounded-3 overflow-hidden">
 
     <div class="card-header tp-card-header py-3 px-4">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-            <div class="d-flex align-items-center">
-                <div class="me-3"><img src="<?= base_url('img/logo-64.png') ?>" alt="Logo TurnoPlaner" class="barra__logo"></div>
-                <div>
-                    <h1 class="h4 mb-0 fw-semibold text-white">Mi calendario de turnos</h1>
-                    <p class="mb-0 small subtitulo"><?= esc($periodo) ?> · <?= $cantidad === 1 ? '1 turno asignado' : "{$cantidad} turnos asignados" ?></p>
-                </div>
-            </div>
-            <div class="text-end text-white small">
-                <span class="badge bg-light text-dark fw-semibold">
-                    Total del período: <?= esc(\App\Models\AsignacionModel::horasTexto($minutos)) ?>
-                </span>
-                <?php if ($minutosExtra > 0): ?>
-                    <span class="badge bg-warning text-dark fw-semibold ms-1">
-                        Horas extras: <?= esc(\App\Models\AsignacionModel::horasTexto($minutosExtra)) ?>
-                    </span>
-                <?php endif; ?>
+        <div class="d-flex align-items-center">
+            <div class="me-3"><img src="<?= base_url('img/logo-64.png') ?>" alt="Logo TurnoPlaner" class="barra__logo"></div>
+            <div>
+                <h1 class="h4 mb-0 fw-semibold text-white">Mi cronograma</h1>
+                <p class="mb-0 small subtitulo"><?= esc($periodo) ?></p>
             </div>
         </div>
     </div>
 
     <div class="card-body p-3 p-md-4 bg-white">
 
-        <!-- Resumen rápido Hoy / Mañana / Próximo -->
-        <?php if ($enCurso !== null || $turnosHoy !== [] || $turnosManana !== [] || $siguienteTurno !== null): ?>
-            <div class="row g-2 mb-4">
-                <?php if ($enCurso !== null): ?>
-                    <div class="col-12 col-md-6">
-                        <div class="border border-success rounded-3 p-3 bg-success-subtle bg-opacity-25 h-100">
-                            <div class="small fw-semibold text-success-emphasis mb-1"><i class="bi bi-play-circle-fill me-1" aria-hidden="true"></i>Turno en curso ahora</div>
-                            <div class="fw-bold"><?= esc((string) $enCurso->sector_nombre) ?> · <?= $pieza($enCurso, 'etiqueta') ?></div>
-                            <div class="small mt-1"><?= $pieza($enCurso, 'horario') ?></div>
-                        </div>
-                    </div>
-                <?php endif; ?>
+        <!-- Hoy y mañana: lo primero que quiere saber la enfermera, sin importar el período elegido -->
+        <section class="proximo-turno p-3 mb-4" aria-labelledby="titulo-resumen">
+            <h2 class="visually-hidden" id="titulo-resumen">Hoy y mañana</h2>
 
-                <?php if ($turnosHoy !== []): ?>
-                    <div class="col-12 col-md-6">
-                        <div class="border rounded-3 p-3 bg-light h-100">
-                            <div class="small fw-semibold text-body-secondary mb-1">Hoy (<?= esc(fecha_ar($hoy)) ?>)</div>
+            <?php if ($enCurso !== null && (string) $enCurso->fecha !== $hoy): ?>
+                <div class="mb-3">
+                    <h3 class="h6 fw-semibold mb-2"><i class="bi bi-play-circle-fill me-1" aria-hidden="true"></i>Turno en curso (empezó ayer)</h3>
+                    <?= $resumen($enCurso) ?>
+                </div>
+            <?php endif; ?>
+
+            <div class="row g-3">
+                <div class="col-12 col-md-6">
+                    <h3 class="h6 fw-semibold mb-2"><i class="bi bi-sun me-1" aria-hidden="true"></i>Hoy <span class="fw-normal text-body-secondary text-capitalize"><?= esc(fecha_larga($hoy)) ?></span></h3>
+                    <?php if ($turnosHoy === []): ?>
+                        <p class="mb-0 text-body-secondary">Sin turno asignado</p>
+                    <?php else: ?>
+                        <div class="vstack gap-2">
                             <?php foreach ($turnosHoy as $t): ?>
-                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-1 mt-1">
-                                    <span><strong><?= esc((string) $t->sector_nombre) ?></strong> · <?= $pieza($t, 'etiqueta') ?></span>
-                                    <span class="small"><?= $pieza($t, 'horario') ?></span>
-                                </div>
+                                <div><?= $resumen($t) ?><div class="mt-1"><?= $pieza($t, 'estado') ?></div></div>
                             <?php endforeach; ?>
                         </div>
-                    </div>
-                <?php endif; ?>
-
-                <?php if ($turnosManana !== []): ?>
-                    <div class="col-12 col-md-6">
-                        <div class="border rounded-3 p-3 bg-light h-100">
-                            <div class="small fw-semibold text-body-secondary mb-1">Mañana (<?= esc(fecha_ar($manana)) ?>)</div>
+                    <?php endif; ?>
+                </div>
+                <div class="col-12 col-md-6">
+                    <h3 class="h6 fw-semibold mb-2"><i class="bi bi-sunrise me-1" aria-hidden="true"></i>Mañana <span class="fw-normal text-body-secondary text-capitalize"><?= esc(fecha_larga($manana)) ?></span></h3>
+                    <?php if ($turnosManana === []): ?>
+                        <p class="mb-0 text-body-secondary">Sin turno asignado</p>
+                    <?php else: ?>
+                        <div class="vstack gap-2">
                             <?php foreach ($turnosManana as $t): ?>
-                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-1 mt-1">
-                                    <span><strong><?= esc((string) $t->sector_nombre) ?></strong> · <?= $pieza($t, 'etiqueta') ?></span>
-                                    <span class="small"><?= $pieza($t, 'horario') ?></span>
-                                </div>
+                                <?= $resumen($t) ?>
                             <?php endforeach; ?>
                         </div>
-                    </div>
-                <?php endif; ?>
-
-                <?php if ($siguienteTurno !== null): ?>
-                    <div class="col-12">
-                        <div class="border rounded-3 p-3 bg-light">
-                            <span class="small fw-semibold text-body-secondary me-2">Próximo turno programado:</span>
-                            <strong class="text-capitalize"><?= esc(dia_semana((string) $siguienteTurno->fecha)) ?> <?= esc(fecha_ar((string) $siguienteTurno->fecha)) ?></strong>
-                            · <?= esc((string) $siguienteTurno->sector_nombre) ?> · <?= $pieza($siguienteTurno, 'etiqueta') ?> (<?= $pieza($siguienteTurno, 'horario') ?>)
-                        </div>
-                    </div>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
-
-        <!-- Controles de navegación y cambio de vista -->
-        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 mb-3">
-            <div class="btn-group" role="group" aria-label="Tipo de vista">
-                <a href="<?= $urlNav($desde, 'mes') ?>" class="btn btn-sm <?= $vista === 'mes' ? 'btn-tp fw-semibold' : 'btn-outline-secondary' ?>">
-                    <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Calendario mensual
-                </a>
-                <a href="<?= $urlNav($desde, 'semana') ?>" class="btn btn-sm <?= $vista === 'semana' ? 'btn-tp fw-semibold' : 'btn-outline-secondary' ?>">
-                    <i class="bi bi-list-week me-1" aria-hidden="true"></i>Vista semanal
-                </a>
+                    <?php endif; ?>
+                </div>
             </div>
 
-            <nav aria-label="Navegar período">
-                <div class="btn-group w-100 w-sm-auto" role="group">
-                    <a class="btn btn-outline-secondary btn-sm" href="<?= $urlNav($anterior) ?>">
-                        <i class="bi bi-chevron-left" aria-hidden="true"></i> Anterior
+            <?php if ($siguienteTurno !== null): ?>
+                <p class="mb-0 mt-3"><span class="fw-semibold">Próximo turno:</span> <span class="text-capitalize"><?= esc(fecha_larga((string) $siguienteTurno->fecha)) ?></span></p>
+                <div class="mt-1"><?= $resumen($siguienteTurno) ?></div>
+            <?php elseif ($turnosHoy === [] && $turnosManana === [] && $enCurso === null): ?>
+                <p class="mb-0 mt-3 text-body-secondary">No tiene turnos programados por ahora.</p>
+            <?php endif; ?>
+        </section>
+
+        <!-- Vista (mes / semana) y navegación -->
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mb-3">
+            <nav aria-label="Elegir vista">
+                <div class="btn-group w-100" role="group">
+                    <a class="btn btn-outline-secondary<?= $vista === 'mes' ? ' active' : '' ?>" href="<?= $url('mes', $fechaVista) ?>" <?= $vista === 'mes' ? 'aria-current="page"' : '' ?>>
+                        <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Mes
                     </a>
-                    <a class="btn btn-outline-secondary btn-sm<?= $esActual ? ' active' : '' ?>" href="<?= $urlNav($hoy) ?>">
-                        Actual
+                    <a class="btn btn-outline-secondary<?= $vista === 'semana' ? ' active' : '' ?>" href="<?= $url('semana', $fechaVista) ?>" <?= $vista === 'semana' ? 'aria-current="page"' : '' ?>>
+                        <i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Semana
                     </a>
-                    <a class="btn btn-outline-secondary btn-sm" href="<?= $urlNav($siguiente) ?>">
-                        Siguiente <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                    </a>
+                </div>
+            </nav>
+            <nav aria-label="Cambiar de <?= $unidad ?>">
+                <div class="btn-group w-100" role="group">
+                    <a class="btn btn-outline-secondary text-nowrap flex-grow-0" href="<?= $url($vista, $anterior) ?>"><i class="bi bi-chevron-left" aria-hidden="true"></i><span class="d-none d-sm-inline"> Anterior</span><span class="visually-hidden d-sm-none"><?= $vista === 'semana' ? 'Semana anterior' : 'Mes anterior' ?></span></a>
+                    <a class="btn btn-outline-secondary text-nowrap<?= $esActual ? ' active' : '' ?>" href="<?= $url($vista, $hoy) ?>" <?= $esActual ? 'aria-current="true"' : '' ?>><?= $vista === 'semana' ? 'Esta semana' : 'Este mes' ?></a>
+                    <a class="btn btn-outline-secondary text-nowrap flex-grow-0" href="<?= $url($vista, $siguiente) ?>"><span class="d-none d-sm-inline">Siguiente </span><span class="visually-hidden d-sm-none"><?= $vista === 'semana' ? 'Semana siguiente' : 'Mes siguiente' ?></span><i class="bi bi-chevron-right" aria-hidden="true"></i></a>
                 </div>
             </nav>
         </div>
 
-        <?php if ($vista === 'mes' && $semanas !== []): ?>
-            <!-- Calendario Mensual Personal (Escritorio) -->
-            <div class="table-responsive d-none d-lg-block">
-                <table class="table table-bordered align-top mb-0" style="table-layout: fixed;">
-                    <caption class="visually-hidden">Mi calendario mensual, <?= esc($periodo) ?></caption>
-                    <thead class="table-light text-center">
-                        <tr>
-                            <th scope="col">Lunes</th>
-                            <th scope="col">Martes</th>
-                            <th scope="col">Miércoles</th>
-                            <th scope="col">Jueves</th>
-                            <th scope="col">Viernes</th>
-                            <th scope="col">Sábado</th>
-                            <th scope="col">Domingo</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($semanas as $semana): ?>
-                            <tr>
-                                <?php foreach ($semana as $dia): ?>
-                                    <?php
-                                    $perteneceMes = substr($dia, 0, 7) === $anioMes;
-                                    $esHoy        = $dia === $hoy;
-                                    $turnosDia    = $perteneceMes ? ($porDia[$dia] ?? []) : [];
-                                    $notaSalida   = ($perteneceMes && isset($salidas[$dia])) ? 'Sale de ' . esc((string) $salidas[$dia]->tipo_nombre) . ' ' . esc($salidas[$dia]->horaFin()) : '';
-                                    $claseCelda   = ! $perteneceMes ? 'bg-light text-body-secondary opacity-75'
-                                        : ($esHoy ? 'border-primary border-2 bg-primary-subtle bg-opacity-10' : ($turnosDia !== [] ? 'bg-white' : 'bg-light-subtle'));
-                                    ?>
-                                    <td class="p-2 <?= $claseCelda ?>" style="height: 115px;" <?= $esHoy ? 'aria-current="date"' : '' ?>>
-                                        <div class="d-flex justify-content-between align-items-center mb-1">
-                                            <span class="fw-bold small <?= $esHoy ? 'badge bg-primary' : '' ?>">
-                                                <?= (int) substr($dia, 8, 2) ?>
-                                            </span>
-                                            <?php if ($esHoy): ?><span class="small fw-semibold text-primary">Hoy</span><?php endif; ?>
-                                        </div>
-
-                                        <?php if ($notaSalida !== ''): ?>
-                                            <div class="small text-body-secondary mb-1" style="font-size: 0.72rem;">
-                                                <i class="bi bi-moon-stars me-1" aria-hidden="true"></i><?= $notaSalida ?>
-                                            </div>
-                                        <?php endif; ?>
-
-                                        <?php if ($perteneceMes): ?>
-                                            <?php if ($turnosDia === []): ?>
-                                                <span class="small text-body-secondary" style="font-size: 0.75rem;">Franco / Sin turno</span>
-                                            <?php else: ?>
-                                                <?php foreach ($turnosDia as $t): ?>
-                                                    <div class="border rounded-2 p-1 mb-1 bg-white shadow-2xs">
-                                                        <div class="d-flex justify-content-between align-items-center gap-1">
-                                                            <?= $pieza($t, 'etiqueta') ?>
-                                                            <?php if ($t->esExtra()): ?>
-                                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size: 0.65rem;" title="Hora extra">HE</span>
-                                                            <?php endif; ?>
-                                                        </div>
-                                                        <div class="fw-semibold mt-1" style="font-size: 0.78rem;">
-                                                            <i class="bi bi-hospital me-1" aria-hidden="true"></i><?= esc((string) $t->sector_nombre) ?>
-                                                        </div>
-                                                        <div class="text-body-secondary" style="font-size: 0.74rem;">
-                                                            <i class="bi bi-clock me-1" aria-hidden="true"></i><?= $pieza($t, 'horario') ?>
-                                                        </div>
-                                                    </div>
-                                                <?php endforeach; ?>
-                                            <?php endif; ?>
-                                        <?php endif; ?>
-                                    </td>
-                                <?php endforeach; ?>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Móvil en vista mes: reutiliza la agenda por día -->
-            <div class="d-lg-none">
-                <?php if ($dias === []): ?>
-                    <div class="text-center py-4 border rounded-3 text-body-secondary">
-                        No tenés turnos asignados en <?= esc($periodo) ?>.
-                    </div>
-                <?php else: ?>
-                    <?= view('cronograma/_dias', [
-                        'dias'    => $dias,
-                        'porDia'  => $porDia,
-                        'salidas' => $salidas,
-                        'hoy'     => $hoy,
-                        'ahora'   => $ahora,
-                        'caption' => 'Mis turnos de ' . $periodo,
-                    ]) ?>
+        <?php if ($cantidad === 0): ?>
+            <!-- Estado vacío (semana o mes) -->
+            <div class="text-center py-5 border rounded-3">
+                <i class="bi bi-calendar-x fs-1 text-body-secondary d-block mb-2" aria-hidden="true"></i>
+                <p class="fw-semibold mb-1">No tiene turnos asignados <?= $vista === 'semana' ? 'en esta semana' : 'en ' . esc(mb_strtolower($periodo)) ?>.</p>
+                <p class="text-body-secondary small mb-3">Cuando la jefatura le asigne turnos, los va a ver acá con su sector, día y horario.</p>
+                <?php if (! $esActual): ?>
+                    <a href="<?= $url($vista, $hoy) ?>" class="btn btn-outline-secondary"><?= $vista === 'semana' ? 'Ir a la semana actual' : 'Ir al mes actual' ?></a>
                 <?php endif; ?>
             </div>
         <?php else: ?>
-            <!-- Vista semanal / lista -->
-            <?= view('cronograma/_dias', [
-                'dias'    => $dias,
-                'porDia'  => $porDia,
-                'salidas' => $salidas,
-                'hoy'     => $hoy,
-                'ahora'   => $ahora,
-                'caption' => 'Mis turnos de ' . $periodo,
-            ]) ?>
-        <?php endif; ?>
+            <p class="small text-body-secondary mb-3">
+                <?= $cantidad === 1 ? '1 turno' : esc((string) $cantidad) . ' turnos' ?> en este período ·
+                <?= esc(AsignacionModel::horasTexto($minutos)) ?> en total<?php if ($minutosExtra > 0): ?> ·
+                    <span class="badge-extra"><span aria-hidden="true">HE</span><span class="visually-hidden">Horas extras:</span></span> <?= esc(AsignacionModel::horasTexto($minutosExtra)) ?> de horas extras<?php endif; ?>
+            </p>
 
+            <?php if ($vista === 'mes' && $semanas !== []): ?>
+                <!-- Computadora: calendario mensual -->
+                <div class="table-responsive border rounded-3 d-none d-xl-block mb-3">
+                    <table class="table align-top mb-0 tp-calendario">
+                        <caption class="visually-hidden"><?= esc($caption) ?></caption>
+                        <thead class="table-light text-center">
+                            <tr>
+                                <?php foreach ($nombresDia as $nombreDia): ?>
+                                    <th scope="col"><?= $nombreDia ?></th>
+                                <?php endforeach; ?>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($semanas as $semana): ?>
+                                <tr>
+                                    <?php foreach ($semana as $dia): ?>
+                                        <?php
+                                        $delMes    = substr($dia, 0, 7) === $anioMes;
+                                        $esHoy     = $dia === $hoy;
+                                        $turnosDia = $delMes ? ($porDia[$dia] ?? []) : [];
+                                        $salida    = $delMes ? ($salidas[$dia] ?? null) : null;
+                                        $clase     = ! $delMes ? 'tp-calendario__dia--fuera' : ($esHoy ? 'tp-calendario__dia--hoy' : '');
+                                        ?>
+                                        <td class="tp-calendario__dia <?= $clase ?>" <?= $esHoy ? 'aria-current="date"' : '' ?>>
+                                            <?php if (! $delMes): ?>
+                                                <span class="tp-calendario__numero" aria-hidden="true"><?= (int) substr($dia, 8, 2) ?></span>
+                                            <?php else: ?>
+                                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                                    <span class="tp-calendario__numero"><span class="visually-hidden"><?= esc(fecha_larga($dia)) ?></span><span aria-hidden="true"><?= (int) substr($dia, 8, 2) ?></span></span>
+                                                    <?php if ($esHoy): ?><span class="badge-hoy">Hoy</span><?php endif; ?>
+                                                </div>
+
+                                                <?php if ($salida !== null): ?>
+                                                    <div class="tp-calendario__nota mb-1">
+                                                        <i class="bi bi-moon-stars me-1" aria-hidden="true"></i>Sale de <?= esc((string) $salida->tipo_nombre) ?> a las <?= esc($salida->horaFin()) ?>
+                                                    </div>
+                                                <?php endif; ?>
+
+                                                <?php if ($turnosDia === []): ?>
+                                                    <span class="tp-calendario__nota">Sin turno asignado</span>
+                                                <?php else: ?>
+                                                    <?php foreach ($turnosDia as $t): ?>
+                                                        <div class="tp-calendario__turno">
+                                                            <?= $pieza($t, 'frase') ?>
+                                                            <div aria-hidden="true">
+                                                                <div class="d-flex justify-content-between align-items-center gap-1">
+                                                                    <?= $pieza($t, 'etiqueta') ?>
+                                                                    <?= $pieza($t, 'extra') ?>
+                                                                </div>
+                                                                <div class="tp-calendario__sector"><i class="bi bi-hospital me-1"></i><?= esc((string) $t->sector_nombre) ?></div>
+                                                                <div class="tp-calendario__nota"><i class="bi bi-clock me-1"></i><?= $pieza($t, 'horario') ?></div>
+                                                                <div class="mt-1"><?= $pieza($t, 'estado') ?></div>
+                                                            </div>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
+                                        </td>
+                                    <?php endforeach; ?>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Celular y tablet: agenda por día (los días pasados del mes actual, plegados) -->
+                <div class="d-xl-none">
+                    <?php if ($pasados !== []): ?>
+                        <details class="dias-pasados mb-3">
+                            <summary class="mb-2">Ver <?= count($pasados) === 1 ? '1 día anterior' : count($pasados) . ' días anteriores' ?> de este mes</summary>
+                            <?= view('cronograma/_dias', $datosDias + ['dias' => $pasados]) ?>
+                        </details>
+                    <?php endif; ?>
+                    <?= view('cronograma/_dias', $datosDias + ['dias' => $resto]) ?>
+                </div>
+            <?php else: ?>
+                <!-- Vista semana -->
+                <?= view('cronograma/_dias', $datosDias + ['dias' => $dias]) ?>
+            <?php endif; ?>
+        <?php endif; ?>
     </div>
 </div>
 <?= $this->endSection() ?>

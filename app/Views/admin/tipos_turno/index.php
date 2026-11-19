@@ -27,7 +27,7 @@ $detalleBaja = 'Ya no aparecerá para asignar turnos. No se permite si tiene tur
                 </div>
                 <div>
                     <h1 class="h4 mb-0 fw-semibold text-white">Tipos de turno</h1>
-                    <p class="mb-0 small subtitulo">Franjas horarias por zona de trabajo</p>
+                    <p class="mb-0 small subtitulo">Franjas horarias de cada sector</p>
                 </div>
             </div>
             <a href="<?= base_url('admin/tipos-turno/crear') ?>" class="btn btn-light text-nowrap fw-semibold shadow-sm">
@@ -47,9 +47,9 @@ $detalleBaja = 'Ya no aparecerá para asignar turnos. No se permite si tiene tur
                 </div>
             </div>
             <div class="col-12 col-sm-6 col-md-3">
-                <label for="sector_id" class="form-label small fw-semibold mb-1">Zona</label>
+                <label for="sector_id" class="form-label small fw-semibold mb-1">Sector</label>
                 <select id="sector_id" name="sector_id" class="form-select">
-                    <option value="">Todas las zonas</option>
+                    <option value="">Todos los sectores</option>
                     <?php foreach ($sectores as $sec): ?>
                         <option value="<?= (int) $sec->id ?>" <?= $filtros['sector_id'] === (int) $sec->id ? 'selected' : '' ?>>
                             <?= esc($sec->nombre) ?>
@@ -85,7 +85,7 @@ $detalleBaja = 'Ya no aparecerá para asignar turnos. No se permite si tiene tur
                     <a href="<?= base_url('admin/tipos-turno') ?>" class="btn btn-outline-secondary btn-sm">Quitar filtros</a>
                 <?php else: ?>
                     <p class="fw-semibold mb-1">Todavía no hay tipos de turno.</p>
-                    <p class="text-body-secondary small mb-3">Cree las franjas (Mañana, Tarde, Noche…) asociadas a cada zona para poder asignar turnos.</p>
+                    <p class="text-body-secondary small mb-3">Cree las franjas (Mañana, Tarde, Noche…) de cada sector para poder asignar turnos.</p>
                     <a href="<?= base_url('admin/tipos-turno/crear') ?>" class="btn btn-tp btn-sm">Nuevo tipo de turno</a>
                 <?php endif; ?>
             </div>
@@ -97,7 +97,7 @@ $detalleBaja = 'Ya no aparecerá para asignar turnos. No se permite si tiene tur
                         <div class="d-flex justify-content-between align-items-start flex-wrap gap-1 mb-2">
                             <div>
                                 <?= view('admin/tipos_turno/_etiqueta', ['t' => $t]) ?>
-                                <span class="badge bg-light text-dark border ms-1"><?= esc((string) ($t->sector_nombre ?? 'Sin zona')) ?></span>
+                                <span class="badge bg-light text-dark border ms-1"><?= esc((string) ($t->sector_nombre ?? 'Sin sector')) ?></span>
                             </div>
                             <?= view('partials/estado_registro', ['activo' => $t->estaActivo()]) ?>
                         </div>
@@ -116,7 +116,7 @@ $detalleBaja = 'Ya no aparecerá para asignar turnos. No se permite si tiene tur
                     <caption class="visually-hidden">Listado de tipos de turno</caption>
                     <thead class="table-light">
                         <tr>
-                            <th scope="col">Zona</th>
+                            <th scope="col">Sector</th>
                             <th scope="col">Turno</th>
                             <th scope="col">Horario</th>
                             <th scope="col" class="text-center">Horas</th>

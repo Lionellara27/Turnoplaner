@@ -48,19 +48,10 @@ class Cronograma extends BaseController
             $anterior  = $inicio->modify('-1 month')->format('Y-m-d');
             $siguiente = $inicio->modify('+1 month')->format('Y-m-d');
             $actual    = substr($hoy, 0, 7) === substr($desde, 0, 7);
-            $periodo   = ucfirst(self::nombreMes((int) $inicio->format('n'))) . ' ' . $inicio->format('Y');
+            $periodo   = AsignacionModel::nombreMes($desde);
 
             // Matriz de semanas (Lunes a Domingo) para dibujar la cuadrícula del calendario mensual
-            $cursor = new DateTimeImmutable(AsignacionModel::lunesDe($desde));
-            $finCal = (new DateTimeImmutable(AsignacionModel::lunesDe($hasta)))->modify('+6 days');
-            while ($cursor <= $finCal) {
-                $fila = [];
-                for ($i = 0; $i < 7; $i++) {
-                    $fila[] = $cursor->modify("+{$i} days")->format('Y-m-d');
-                }
-                $semanas[] = $fila;
-                $cursor    = $cursor->modify('+7 days');
-            }
+            $semanas = AsignacionModel::semanasDelMes($desde);
         }
 
         $usuarioId = (int) session()->get('usuario_id');
@@ -113,7 +104,7 @@ class Cronograma extends BaseController
         $siguienteTurno = ($turnosHoy === [] && $turnosMan === []) ? $modelo->siguienteProgramado($usuarioId, $ahora) : null;
 
         return view('cronograma/index', [
-            'titulo'         => 'Mi calendario - TurnoPlaner',
+            'titulo'         => 'Mi cronograma - TurnoPlaner',
             'vista'          => $vista,
             'periodo'        => $periodo,
             'desde'          => $desde,
@@ -136,10 +127,5 @@ class Cronograma extends BaseController
             'turnosManana'   => $turnosMan,
             'siguienteTurno' => $siguienteTurno,
         ]);
-    }
-
-    private static function nombreMes(int $mes): string
-    {
-        return ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][$mes - 1];
     }
 }

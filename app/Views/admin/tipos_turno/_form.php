@@ -4,11 +4,12 @@
  *
  * @var \App\Entities\TipoTurno|null   $tipo     null en el alta
  * @var array<string, string>          $paleta   colores sugeridos [hex => nombre]
- * @var list<\App\Entities\Sector>     $sectores sectores activos disponibles
+ * @var list<\App\Entities\Sector>     $sectores sectores elegibles (los arma TiposTurno::crear/editar;
+ *                                               la vista no consulta la base)
  */
 $tt       = $tipo ?? null;
 $paleta   = $paleta ?? \App\Models\TipoTurnoModel::PALETA;
-$sectores = $sectores ?? (new \App\Models\SectorModel())->where('estado', 'ACTIVO')->orderBy('nombre', 'ASC')->findAll();
+$sectores = $sectores ?? [];
 $sectorId = (int) old('sector_id', (string) ($tt?->sector_id ?? ''), false);
 $inicio   = (string) old('hora_inicio', $tt?->inicio() ?? '', false);
 $fin      = (string) old('hora_fin', $tt?->fin() ?? '', false);
@@ -20,18 +21,18 @@ $color    = (string) old('color', $tt?->color ?? array_key_first($paleta), false
     <div class="col-12">
         <div class="form-floating">
             <select class="form-select<?= clase_invalido('sector_id') ?>" id="sector_id" name="sector_id" required
-                    aria-describedby="ayuda-sector" data-mensaje="Seleccione la zona de trabajo.">
-                <option value="">Seleccione una zona...</option>
+                    aria-describedby="ayuda-sector" data-mensaje="Seleccione el sector.">
+                <option value="">Seleccione un sector...</option>
                 <?php foreach ($sectores as $sec): ?>
                     <option value="<?= (int) $sec->id ?>" <?= $sectorId === (int) $sec->id ? 'selected' : '' ?>>
                         <?= esc($sec->nombre) ?>
                     </option>
                 <?php endforeach; ?>
             </select>
-            <label for="sector_id">Zona de trabajo (Sector) *</label>
+            <label for="sector_id">Sector *</label>
             <?= feedback_campo('sector_id') ?>
         </div>
-        <div id="ayuda-sector" class="form-text">El turno quedará disponible únicamente para planificar esta zona (ej. UTI, Guardia).</div>
+        <div id="ayuda-sector" class="form-text">El turno quedará disponible únicamente para planificar este sector (ej. UTI, Guardia).</div>
     </div>
 
     <div class="col-12">
@@ -42,7 +43,7 @@ $color    = (string) old('color', $tt?->color ?? array_key_first($paleta), false
             <label for="nombre">Nombre del turno *</label>
             <?= feedback_campo('nombre') ?>
         </div>
-        <div id="ayuda-nombre" class="form-text">Ej: Mañana, Tarde, Noche, Guardia especial. No puede repetirse dentro de la misma zona.</div>
+        <div id="ayuda-nombre" class="form-text">Ej: Mañana, Tarde, Noche, Guardia especial. No puede repetirse dentro del mismo sector.</div>
     </div>
 
     <div class="col-6">
