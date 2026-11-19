@@ -31,8 +31,8 @@ $claseCupo = $cantidad >= $minimo ? 'tp-cupo--ok'
         <span class="tp-turno-pill__cupo <?= $claseCupo ?>"><?= $cantidad ?>/<?= $minimo ?></span>
 
         <?php if ($puedeAsignar): ?>
-            <?php $url = base_url('admin/asignaciones/crear') . '?' . http_build_query(['sector' => (int) $sector->id, 'tipo' => (int) $tipo->id, 'fecha' => $dia], '', '&amp;'); ?>            <a href="<?= $url ?>" class="tp-shift-row__btn-add" <?= $datosModal ?>
-               onclick="event.stopPropagation();"
+            <?php $url = base_url('admin/asignaciones/crear') . '?' . http_build_query(['sector' => (int) $sector->id, 'tipo' => (int) $tipo->id, 'fecha' => $dia], '', '&amp;'); ?>
+            <a href="<?= $url ?>" class="tp-shift-row__btn-add" <?= $datosModal ?>
                title="Asignar enfermero/a a <?= $cuando ?>">
                 <i class="bi bi-plus" aria-hidden="true"></i><span class="visually-hidden">Asignar <?= $cuando ?></span>
             </a>

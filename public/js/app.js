@@ -325,37 +325,288 @@ document.addEventListener('DOMContentLoaded', function () {
         var formAsignar = modalAsignar.querySelector('form[data-ajax-asignar]');
         var origenAsignar = null;
 
-        document.addEventListener('click', function (evento) {
-            var boton = evento.target.closest('[data-modal-asignar]');
-            if (!boton) { return; }
-            evento.preventDefault();
-            origenAsignar = boton;
-            formAsignar.querySelector('[name="sector_id"]').value = boton.getAttribute('data-sector');
-            formAsignar.querySelector('[name="tipo_turno_id"]').value = boton.getAttribute('data-tipo');
-            formAsignar.querySelector('[name="fecha"]').value = boton.getAttribute('data-fecha');
-            formAsignar.querySelector('[data-descripcion-turno]').textContent = 'Turno ' + boton.getAttribute('data-descripcion') + '.';
+        var inputUsuarioModal   = formAsignar.querySelector('[name="usuario_id"]');
+        var inputBuscarModal    = modalAsignar.querySelector('#buscarEnfermeroModal');
+        var selectEspModal      = modalAsignar.querySelector('#filtroEspecialidadModal');
+        var selectCargaModal    = modalAsignar.querySelector('#filtroCargaModal');
+        var selectOrdenModal    = modalAsignar.querySelector('#ordenarEnfermeroModal');
+        var contadorModal       = modalAsignar.querySelector('#contadorEnfermerosModal');
+        var sinResultadosModal  = modalAsignar.querySelector('#sinResultadosModal');
+        var btnLimpiarModal     = modalAsignar.querySelector('#btnLimpiarFiltrosModal');
+        var btnRestablecerModal = modalAsignar.querySelector('#btnRestablecerModal');
+        var textoSeleccionado   = modalAsignar.querySelector('#textoEnfermeroSeleccionado');
+        var listaOpcionesModal  = modalAsignar.querySelector('#listaEnfermerosModal');
+
+        function filtrarYOrdenarModal() {
+            if (!listaOpcionesModal) { return; }
+            var q     = (inputBuscarModal ? inputBuscarModal.value.trim().toLowerCase() : '');
+            var esp   = (selectEspModal ? selectEspModal.value : '');
+            var carga = (selectCargaModal ? selectCargaModal.value : 'todos');
+            var orden = (selectOrdenModal ? selectOrdenModal.value : 'carga-asc');
+
+            var hayFiltro = q !== '' || esp !== '' || carga !== 'todos' || orden !== 'carga-asc';
+            if (btnLimpiarModal) {
+                btnLimpiarModal.classList.toggle('d-none', !hayFiltro);
+            }
+
+            var items = Array.from(listaOpcionesModal.querySelectorAll('.tp-enfermero-opcion'));
+            var visibles = 0;
+
+            items.forEach(function (el) {
+                var nombre      = (el.getAttribute('data-nombre') || '').toLowerCase();
+                var mat         = (el.getAttribute('data-matricula') || '').toLowerCase();
+                var espItem     = el.getAttribute('data-especialidad') || '';
+                var tieneExtras = el.getAttribute('data-tiene-extras') === '1';
+
+                var matchTexto = !q || nombre.indexOf(q) !== -1 || mat.indexOf(q) !== -1;
+                var matchEsp   = !esp || espItem === esp;
+                var matchCarga = true;
+                if (carga === 'disponibles') {
+                    matchCarga = !tieneExtras;
+                } else if (carga === 'extras') {
+                    matchCarga = tieneExtras;
+                }
+
+                var mostrar = matchTexto && matchEsp && matchCarga;
+                el.classList.toggle('d-none', !mostrar);
+                if (mostrar) {
+                    visibles++;
+                }
+            });
+
+            items.sort(function (a, b) {
+                if (orden === 'alfabetico') {
+                    return (a.getAttribute('data-nombre') || '').localeCompare(b.getAttribute('data-nombre') || '', 'es', { sensitivity: 'base' });
+                }
+                var minA = parseInt(a.getAttribute('data-minutos') || '0', 10);
+                var minB = parseInt(b.getAttribute('data-minutos') || '0', 10);
+                if (orden === 'carga-asc') {
+                    return minA - minB;
+                }
+                if (orden === 'carga-desc') {
+                    return minB - minA;
+                }
+                return 0;
+            });
+
+            items.forEach(function (el) {
+                listaOpcionesModal.appendChild(el);
+            });
+
+            if (contadorModal) {
+                contadorModal.textContent = 'Mostrando ' + visibles + (visibles === 1 ? ' enfermero/a' : ' enfermeros/as');
+            }
+            if (sinResultadosModal) {
+                sinResultadosModal.classList.toggle('d-none', visibles > 0);
+            }
+        }
+
+        function seleccionarOpcionModal(card) {
+            if (!card) { return; }
+            var id     = card.getAttribute('data-id');
+            var nombre = card.getAttribute('data-nombre-mostrar') || '';
+            var mat    = card.getAttribute('data-matricula-mostrar') || '';
+            var esp    = card.getAttribute('data-especialidad') || '';
+
+            listaOpcionesModal.querySelectorAll('.tp-enfermero-opcion').forEach(function (c) {
+                c.classList.remove('is-selected');
+                c.setAttribute('aria-checked', 'false');
+            });
+            card.classList.add('is-selected');
+            card.setAttribute('aria-checked', 'true');
+
+            if (inputUsuarioModal) {
+                inputUsuarioModal.value = id;
+            }
+            var selectFallback = formAsignar.querySelector('select[name="usuario_id"]');
+            if (selectFallback) {
+                selectFallback.value = id;
+            }
+
+            if (textoSeleccionado) {
+                textoSeleccionado.innerHTML = '<strong class="text-dark">' + nombre + '</strong>' +
+                    (mat ? ' · <span class="tp-matricula">Mat: ' + mat + '</span>' : '') +
+                    (esp ? ' · <span class="badge tp-badge-especialidad">' + esp + '</span>' : '');
+            }
+
             formAsignar.querySelector('[data-errores-modal]').classList.add('d-none');
-            formAsignar.querySelector('select').value = '';
+        }
+
+        function limpiarSeleccionModal() {
+            if (inputUsuarioModal) { inputUsuarioModal.value = ''; }
+            var selectFallback = formAsignar.querySelector('select[name="usuario_id"]');
+            if (selectFallback) { selectFallback.value = ''; }
+
+            if (listaOpcionesModal) {
+                listaOpcionesModal.querySelectorAll('.tp-enfermero-opcion').forEach(function (c) {
+                    c.classList.remove('is-selected');
+                    c.setAttribute('aria-checked', 'false');
+                });
+            }
+            if (textoSeleccionado) {
+                textoSeleccionado.innerHTML = '<span class="text-body-secondary fst-italic">Ningún enfermero/a seleccionado</span>';
+            }
+        }
+
+        function restablecerFiltrosModal() {
+            if (inputBuscarModal) { inputBuscarModal.value = ''; }
+            if (selectEspModal) { selectEspModal.value = ''; }
+            if (selectCargaModal) { selectCargaModal.value = 'todos'; }
+            if (selectOrdenModal) { selectOrdenModal.value = 'carga-asc'; }
+            filtrarYOrdenarModal();
+            if (inputBuscarModal) { inputBuscarModal.focus(); }
+        }
+
+        if (inputBuscarModal) { inputBuscarModal.addEventListener('input', filtrarYOrdenarModal); }
+        if (selectEspModal) { selectEspModal.addEventListener('change', filtrarYOrdenarModal); }
+        if (selectCargaModal) { selectCargaModal.addEventListener('change', filtrarYOrdenarModal); }
+        if (selectOrdenModal) { selectOrdenModal.addEventListener('change', filtrarYOrdenarModal); }
+        if (btnLimpiarModal) { btnLimpiarModal.addEventListener('click', restablecerFiltrosModal); }
+        if (btnRestablecerModal) { btnRestablecerModal.addEventListener('click', restablecerFiltrosModal); }
+
+        if (listaOpcionesModal) {
+            listaOpcionesModal.addEventListener('click', function (e) {
+                var card = e.target.closest('.tp-enfermero-opcion');
+                if (card) {
+                    seleccionarOpcionModal(card);
+                }
+            });
+            listaOpcionesModal.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    var card = e.target.closest('.tp-enfermero-opcion');
+                    if (card) {
+                        e.preventDefault();
+                        seleccionarOpcionModal(card);
+                    }
+                }
+            });
+        }
+
+        var enfermeroActualIdModal = null;
+
+        function prepararModalAsignar(boton) {
+            origenAsignar = boton;
+            formAsignar.action = formAsignar.getAttribute('data-action-crear') || formAsignar.action;
+            enfermeroActualIdModal = null;
+
+            formAsignar.querySelector('[name="sector_id"]').value = boton.getAttribute('data-sector') || '';
+            formAsignar.querySelector('[name="tipo_turno_id"]').value = boton.getAttribute('data-tipo') || '';
+            formAsignar.querySelector('[name="fecha"]').value = boton.getAttribute('data-fecha') || '';
+
+            var tituloEl   = modalAsignar.querySelector('#tituloModalAsignar');
+            var subEl      = modalAsignar.querySelector('#subtituloModalAsignar');
+            var bloqueReas = modalAsignar.querySelector('#bloqueReasignarActual');
+            var textoBtn   = modalAsignar.querySelector('#textoBtnSubmitAsignar');
+            var iconoBtn   = modalAsignar.querySelector('#iconoBtnSubmitAsignar');
+            var iconoHead  = modalAsignar.querySelector('#iconoModalAsignar');
+
+            if (tituloEl)  { tituloEl.textContent = 'Asignar turno de enfermería'; }
+            if (subEl)     { subEl.textContent = 'Selección de personal según dotación, especialidad y carga horaria'; }
+            if (bloqueReas){ bloqueReas.classList.add('d-none'); }
+            if (textoBtn)  { textoBtn.textContent = 'Asignar guardia'; }
+            if (iconoBtn)  { iconoBtn.className = 'bi bi-person-check me-1'; }
+            if (iconoHead) { iconoHead.className = 'bi bi-person-plus-fill fs-5'; }
+
+            var descTurno = boton.getAttribute('data-descripcion') || '';
+            var descEl = formAsignar.querySelector('[data-descripcion-turno]');
+            if (descEl) {
+                descEl.textContent = descTurno ? 'Turno ' + descTurno + '.' : 'Turno seleccionado.';
+            }
+
+            formAsignar.querySelector('[data-errores-modal]').classList.add('d-none');
+            limpiarSeleccionModal();
+            restablecerFiltrosModal();
             instanciaAsignar.show(boton);
+        }
+
+        function prepararModalReasignar(boton) {
+            origenAsignar = boton;
+            var asigId = boton.getAttribute('data-id');
+            var base = formAsignar.getAttribute('data-base-asignaciones') || (window.location.origin + '/admin/asignaciones');
+            formAsignar.action = base + '/' + asigId + '/editar';
+
+            enfermeroActualIdModal = boton.getAttribute('data-enfermero-actual-id') || null;
+            var enfermeroActualNombre = boton.getAttribute('data-enfermero-actual-nombre') || 'Enfermero/a actual';
+
+            formAsignar.querySelector('[name="sector_id"]').value = boton.getAttribute('data-sector') || '';
+            formAsignar.querySelector('[name="tipo_turno_id"]').value = boton.getAttribute('data-tipo') || '';
+            formAsignar.querySelector('[name="fecha"]').value = boton.getAttribute('data-fecha') || '';
+
+            var tituloEl   = modalAsignar.querySelector('#tituloModalAsignar');
+            var subEl      = modalAsignar.querySelector('#subtituloModalAsignar');
+            var bloqueReas = modalAsignar.querySelector('#bloqueReasignarActual');
+            var nombreReas = modalAsignar.querySelector('#nombreEnfermeroActualReasignar');
+            var textoBtn   = modalAsignar.querySelector('#textoBtnSubmitAsignar');
+            var iconoBtn   = modalAsignar.querySelector('#iconoBtnSubmitAsignar');
+            var iconoHead  = modalAsignar.querySelector('#iconoModalAsignar');
+
+            if (tituloEl)  { tituloEl.textContent = 'Reasignar turno de enfermería'; }
+            if (subEl)     { subEl.textContent = 'Seleccione el nuevo enfermero/a que reemplazará al personal actual'; }
+            if (bloqueReas){ bloqueReas.classList.remove('d-none'); }
+            if (nombreReas){ nombreReas.textContent = enfermeroActualNombre; }
+            if (textoBtn)  { textoBtn.textContent = 'Guardar reasignación'; }
+            if (iconoBtn)  { iconoBtn.className = 'bi bi-arrow-left-right me-1'; }
+            if (iconoHead) { iconoHead.className = 'bi bi-arrow-left-right fs-5'; }
+
+            var descTurno = boton.getAttribute('data-descripcion') || '';
+            var descEl = formAsignar.querySelector('[data-descripcion-turno]');
+            if (descEl) {
+                descEl.textContent = descTurno ? 'Turno ' + descTurno + '.' : 'Turno seleccionado.';
+            }
+
+            formAsignar.querySelector('[data-errores-modal]').classList.add('d-none');
+            limpiarSeleccionModal();
+            restablecerFiltrosModal();
+            instanciaAsignar.show(boton);
+        }
+
+        document.addEventListener('click', function (evento) {
+            var botonAsignar = evento.target.closest('[data-modal-asignar]');
+            if (botonAsignar) {
+                evento.preventDefault();
+                prepararModalAsignar(botonAsignar);
+                return;
+            }
+
+            var botonReasignar = evento.target.closest('[data-modal-reasignar]');
+            if (botonReasignar) {
+                evento.preventDefault();
+                prepararModalReasignar(botonReasignar);
+                return;
+            }
         });
 
         modalAsignar.addEventListener('shown.bs.modal', function () {
-            formAsignar.querySelector('select').focus();
+            if (inputBuscarModal) {
+                inputBuscarModal.focus();
+            } else {
+                var select = formAsignar.querySelector('select');
+                if (select) { select.focus(); }
+            }
         });
+
         modalAsignar.addEventListener('hidden.bs.modal', function () {
             var btn = formAsignar.querySelector('button[type="submit"]');
             if (btn) {
                 btn.disabled = false;
-                btn.textContent = btn.getAttribute('data-texto-original') || 'Asignar';
+                btn.textContent = btn.getAttribute('data-texto-original') || 'Asignar guardia';
             }
             if (origenAsignar) { origenAsignar.focus(); }
         });
 
         formAsignar.addEventListener('submit', function (evento) {
             evento.preventDefault();
-            var select = formAsignar.querySelector('select');
-            if (!select.value) {
-                mostrarErrores(formAsignar.querySelector('[data-errores-modal]'), { usuario_id: 'Elija el enfermero/a.' });
+            var valorUsuario = inputUsuarioModal ? inputUsuarioModal.value : '';
+            if (!valorUsuario) {
+                var selFallback = formAsignar.querySelector('select[name="usuario_id"]');
+                if (selFallback) { valorUsuario = selFallback.value; }
+            }
+            if (!valorUsuario) {
+                mostrarErrores(formAsignar.querySelector('[data-errores-modal]'), { usuario_id: 'Seleccione un enfermero/a de la lista.' });
+                return;
+            }
+            if (enfermeroActualIdModal && valorUsuario === enfermeroActualIdModal) {
+                mostrarErrores(formAsignar.querySelector('[data-errores-modal]'), { usuario_id: 'Elija un enfermero/a diferente al actual para reasignar el turno.' });
                 return;
             }
             enviarAjax(formAsignar, formAsignar.action, origenAsignar);
