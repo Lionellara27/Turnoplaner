@@ -1601,3 +1601,653 @@ summary:focus-visible,
 .tabla-sectores th:nth-child(3) { width: 18%; }
 .tabla-sectores th:nth-child(4) { width: 10%; }
 .tabla-sectores th:nth-child(5) { width: 12%; }
+
+/* ===== HU-18 / HU-19 / HU-20: portal del enfermero ===== */
+
+/* Link de acción de un turno ("Informar ausencia"): 44 px de alto aunque sea btn-sm, y puede partir en dos renglones */
+.tp-accion-turno {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 44px;
+    white-space: normal;
+    text-align: left;
+    --bs-btn-color: var(--color-primario-oscuro);
+    --bs-btn-bg: var(--color-blanco);
+    --bs-btn-border-color: var(--color-borde-fuerte);
+    --bs-btn-hover-color: var(--color-primario-hover);
+    --bs-btn-hover-bg: var(--color-primario-suave);
+    --bs-btn-hover-border-color: var(--color-primario-oscuro);
+    --bs-btn-active-color: var(--color-primario-hover);
+    --bs-btn-active-bg: var(--color-primario-suave);
+    --bs-btn-active-border-color: var(--color-primario-oscuro);
+    font-weight: 600;
+}
+
+/* Estado del aviso de ausencia (ícono + texto). Puede ocupar dos renglones en celdas angostas */
+.tp-estado-aviso {
+    white-space: normal;
+    border-radius: var(--radio);
+    border: 1px solid transparent;
+}
+
+.tp-estado-aviso--pendiente {
+    background: var(--color-aviso-fondo);
+    border-color: #e9c97f;
+    color: var(--color-aviso);
+}
+
+.tp-estado-aviso--cubierta {
+    background: var(--color-info-fondo);
+    border-color: #b9d3e6;
+    color: var(--color-info);
+}
+
+.tp-estado-aviso--rechazada {
+    background: var(--color-error-fondo);
+    border-color: #efc2c2;
+    color: var(--color-error);
+}
+
+/* HU-20: bloque de marcación dentro del resumen Hoy */
+.tp-marcacion {
+    background: var(--color-blanco);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio);
+}
+
+.tp-marcacion__hecho {
+    color: var(--color-ok);
+    font-weight: 600;
+}
+
+/* Textareas con contador */
+.tp-textarea {
+    min-height: 6rem;
+}
+
+.form-floating > .tp-textarea {
+    height: 8rem;
+}
+
+.tp-contador {
+    white-space: nowrap;
+}
+
+.tp-contador--aviso {
+    color: var(--color-aviso);
+    font-weight: 600;
+}
+
+.tp-contador--error {
+    color: var(--color-error);
+    font-weight: 600;
+}
+
+/* HU-18: opciones de motivo (radios reales con .btn-check) */
+.tp-opcion-motivo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 48px;
+    padding: 0.5rem 0.85rem;
+    border: 1px solid var(--color-borde-fuerte);
+    border-radius: var(--radio);
+    background: var(--color-blanco);
+    color: var(--color-texto);
+    cursor: pointer;
+}
+
+.tp-opcion-motivo:hover {
+    background: var(--color-fondo-suave);
+}
+
+.btn-check:checked + .tp-opcion-motivo {
+    background: var(--color-primario-suave);
+    border: 2px solid var(--color-primario-oscuro);
+    color: var(--color-primario-hover);
+    font-weight: 600;
+}
+
+.btn-check:focus-visible + .tp-opcion-motivo {
+    outline: 2px solid var(--color-primario-oscuro);
+    outline-offset: 2px;
+}
+
+fieldset.is-invalid .tp-opcion-motivo {
+    border-color: var(--color-error);
+}
+
+/* Casilla de confirmación con área táctil de 44 px */
+.tp-check-grande {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 44px;
+    padding-left: 0;
+    flex-wrap: wrap;
+}
+
+.tp-check-grande .form-check-input {
+    float: none;
+    margin: 0;
+    width: 1.35rem;
+    height: 1.35rem;
+    flex-shrink: 0;
+}
+
+.tp-check-grande .form-check-label {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.tp-check-grande .invalid-feedback {
+    flex-basis: 100%;
+}
+
+/* HU-18: tarjetas de "Mis ausencias" */
+.tp-aviso {
+    border: 1px solid var(--color-borde);
+    border-left: 4px solid var(--color-aviso);
+    border-radius: var(--radio);
+    background: var(--color-blanco);
+}
+
+.tp-aviso--cubierta {
+    border-left-color: var(--color-info);
+}
+
+.tp-aviso--rechazada {
+    border-left-color: var(--color-error);
+}
+
+.tp-aviso__datos {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.15rem 0.75rem;
+}
+
+.tp-aviso__datos dt {
+    font-weight: 600;
+    color: var(--color-texto-suave);
+}
+
+.tp-aviso__datos dd {
+    margin: 0;
+}
+
+.tp-aviso__nota {
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radio);
+}
+
+.tp-aviso__nota--ok {
+    background: var(--color-info-fondo);
+    color: var(--color-info);
+}
+
+.tp-aviso__nota--error {
+    background: var(--color-error-fondo);
+    color: var(--color-error);
+}
+
+.tp-informar {
+    scroll-margin-top: calc(var(--alto-barra) + 1rem);
+}
+
+.tp-proximos__item {
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio);
+    margin-bottom: 0.5rem;
+}
+
+.tp-proximos__datos {
+    min-width: 0;
+}
+
+@media (min-width: 1200px) {
+    .tp-proximos {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem;
+    }
+
+    .tp-proximos__item {
+        margin-bottom: 0;
+    }
+}
+
+/* HU-19: estados del historial (ícono + texto) */
+.tp-estado-hist {
+    white-space: normal;
+}
+
+.tp-estado-hist--cumplido,
+.tp-estado-hist--en-curso {
+    background: var(--color-ok-fondo);
+    color: var(--color-ok);
+}
+
+.tp-estado-hist--programado {
+    background: var(--color-info-fondo);
+    color: var(--color-info);
+}
+
+.tp-estado-hist--ausente-cubierto {
+    background: #eceff1;
+    color: var(--color-texto-suave);
+}
+
+.tp-estado-hist--ausencia-en-gestion {
+    background: var(--color-aviso-fondo);
+    color: var(--color-aviso);
+}
+
+.tp-estado-hist--ausencia-rechazada {
+    background: var(--color-error-fondo);
+    color: var(--color-error);
+}
+
+.tp-indicador--info {
+    border-left-color: var(--color-info);
+}
+
+.tp-indicador--info .indicador__icono {
+    background: var(--color-info-fondo);
+    color: var(--color-info);
+}
+
+.tp-historial__filtro .form-select,
+.tp-boton-filtrar {
+    min-height: 44px;
+}
+
+.tp-historial__datos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+}
+
+.tp-historial__datos dt {
+    display: inline;
+    font-weight: 600;
+    color: var(--color-texto-suave);
+}
+
+.tp-historial__datos dt::after {
+    content: ":";
+}
+
+.tp-historial__datos dd {
+    display: inline;
+    margin: 0 0 0 0.25rem;
+}
+
+.tp-historial__nota > summary {
+    color: var(--color-primario-oscuro);
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    padding: 0.35rem 0;
+}
+
+.tp-link-44 {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+}
+
+/* ===== HU-15 / HU-16: tablero y ausencias (admin) ===== */
+
+/* Marca "Área crítica" (ícono + texto). #a42626 sobre #fdf0f0: 6.55:1 */
+.tp-badge-critica {
+    display: inline-flex;
+    align-items: center;
+    background: var(--color-error-fondo);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+    font-weight: 600;
+    white-space: normal;
+    text-align: left;
+}
+
+.tp-texto-error {
+    color: var(--color-error);
+}
+
+/* Contador del menú lateral (Ausencias pendientes). Blanco sobre #a42626: 7.4:1 */
+.tp-menu-contador {
+    margin-left: auto;
+    background: var(--color-error);
+    color: var(--color-blanco);
+    font-size: 0.75rem;
+}
+
+.menu-lateral .nav-link {
+    position: relative;
+}
+
+@media (min-width: 992px) {
+    .menu-compacto .menu-lateral .tp-menu-contador {
+        position: absolute;
+        top: 2px;
+        right: 6px;
+        margin: 0;
+    }
+}
+
+/* Resumen del tablero (3 indicadores) */
+.tp-resumen-tablero {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--color-borde-suave);
+    border-left: 4px solid var(--color-primario);
+    border-radius: var(--radio);
+    background: var(--color-blanco);
+    color: var(--color-texto);
+}
+
+.tp-resumen-tablero__numero {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.tp-resumen-tablero__de {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-texto-suave);
+}
+
+.tp-resumen-tablero--alerta { border-left-color: var(--color-error); }
+.tp-resumen-tablero--alerta .indicador__icono { background: var(--color-error-fondo); color: var(--color-error); }
+.tp-resumen-tablero--ok { border-left-color: var(--color-ok); }
+.tp-resumen-tablero--ok .indicador__icono { background: var(--color-ok-fondo); color: var(--color-ok); }
+.tp-resumen-tablero--aviso { border-left-color: var(--color-aviso); }
+.tp-resumen-tablero--aviso .indicador__icono { background: var(--color-aviso-fondo); color: var(--color-aviso); }
+.tp-resumen-tablero--neutro { border-left-color: var(--color-borde-fuerte); }
+.tp-resumen-tablero--neutro .indicador__icono { background: var(--color-fondo-suave); color: var(--color-texto-suave); }
+
+.tp-resumen-tablero--link {
+    text-decoration: none;
+}
+
+.tp-resumen-tablero--link:hover {
+    color: var(--color-texto);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+}
+
+.tp-resumen-tablero__ir {
+    color: var(--color-primario-oscuro);
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+/* Leyenda: muestras de "Terminado" y "No vigente" (mismo fondo que la franja) */
+.tp-leyenda-tablero {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-borde);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-texto);
+}
+
+.tp-leyenda-tablero--terminada { background: var(--color-fondo-pasado); }
+.tp-leyenda-tablero--no-aplica { background: var(--color-fondo-fuera); border-style: dashed; border-color: var(--color-borde-fuerte); }
+
+/* Tabla semanal (desde 1400 px): filas = sectores, columnas = días */
+.tp-tablero {
+    table-layout: fixed;
+    width: 100%;
+    border-color: var(--color-borde);
+}
+
+.tp-tablero thead th {
+    --bs-table-bg: var(--color-fondo-suave);
+    color: var(--color-texto);
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 0.5rem 0.35rem;
+    vertical-align: middle;
+}
+
+.tp-tablero th.tp-tablero__sector {
+    width: 13%;
+    text-align: left;
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+}
+
+.tp-tablero tbody th.tp-tablero__sector {
+    --bs-table-bg: var(--color-blanco);
+}
+
+.tp-tablero td {
+    padding: 0.4rem;
+    vertical-align: top;
+}
+
+.tp-tablero .tp-tablero__hoy {
+    --bs-table-bg: var(--color-primario-suave);
+}
+
+/* Las áreas críticas llevan un borde rojo a la izquierda, además de la marca escrita */
+.tp-tablero__critica > th {
+    box-shadow: inset 4px 0 0 var(--color-error);
+}
+
+.tp-tablero__dia {
+    display: inline-block;
+    min-height: 44px;
+    padding: 0.15rem 0.25rem;
+    color: var(--color-primario-oscuro);
+    font-weight: 600;
+}
+
+/* Lista de franjas de un día */
+.tp-franjas {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* Lista por día: varias franjas por renglón (dos en 360 px) para acortar la página */
+.tp-franjas--fila {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.tp-franjas--fila > .tp-franja__item {
+    flex: 1 1 8rem;
+    min-width: 0;
+}
+
+.tp-franja {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    height: 100%;
+    padding: 0.35rem 0.45rem;
+    border: 1px solid var(--color-borde-suave);
+    border-left: 4px solid var(--color-turno, var(--color-primario-oscuro));
+    border-radius: 6px;
+    background: var(--color-fondo);
+    color: var(--color-texto);
+    font-size: 0.82rem;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.tp-franja .cobertura {
+    white-space: normal;
+}
+
+.tp-franja--alerta {
+    background: var(--color-blanco);
+    border-color: var(--color-error);
+    border-left-color: var(--color-turno, var(--color-error));
+}
+
+/* Terminada o no vigente: se distinguen con fondo y texto, nunca con opacidad */
+.tp-franja--terminada {
+    background: var(--color-fondo-pasado);
+    border-color: var(--color-borde);
+    border-left-color: var(--color-turno, var(--color-borde-fuerte));
+}
+
+.tp-franja--no-aplica {
+    background: var(--color-fondo-fuera);
+    border-style: dashed;
+    border-color: var(--color-borde-fuerte);
+}
+
+.tp-franja--link {
+    min-height: 44px;
+    cursor: pointer;
+}
+
+.tp-franja--link:hover {
+    color: var(--color-texto);
+    background: var(--color-error-fondo);
+}
+
+.tp-franja__cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 0.4rem;
+}
+
+.tp-franja__nombre {
+    font-weight: 600;
+}
+
+.tp-franja__horario,
+.tp-franja__nota {
+    color: var(--color-texto-suave);
+    font-size: 0.78rem;
+}
+
+.tp-franja__nota {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* #8f5e05 sobre blanco: 5.6:1 */
+.tp-franja__nota--ausencia {
+    color: var(--color-aviso);
+    font-weight: 600;
+}
+
+.tp-franja__accion {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-error);
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+/* Un sector dentro de la lista por día */
+.tp-tablero-sector + .tp-tablero-sector {
+    margin-top: 0.6rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--color-borde-suave);
+}
+
+.tp-tablero-sector__titulo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+/* Estado de una ausencia (ícono + texto) */
+.tp-estado-ausencia {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.tp-estado-ausencia--pendiente { background: var(--color-aviso-fondo); color: var(--color-aviso); } /* 5.22:1 */
+.tp-estado-ausencia--cubierta { background: var(--color-ok-fondo); color: var(--color-ok); }        /* 6.95:1 */
+.tp-estado-ausencia--rechazada { background: var(--color-error-fondo); color: var(--color-error); } /* 6.55:1 */
+
+/* Contador dentro de los botones del filtro de estado */
+.tp-badge-contador {
+    background: var(--color-fondo-suave);
+    color: var(--color-texto);
+    border: 1px solid var(--color-borde);
+}
+
+.tp-ausencia-descripcion {
+    max-width: 22rem;
+}
+
+/* Pantalla de reemplazo */
+.tp-ausencia-ficha {
+    padding: 1rem;
+    border: 1px solid var(--color-borde-suave);
+    border-radius: var(--radio);
+    background: var(--color-fondo);
+}
+
+.tp-link-dia {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+}
+
+.tp-rechazo-seccion {
+    border-left: 4px solid var(--color-error) !important;
+}
+
+.form-floating > .tp-textarea-observacion {
+    height: 7rem;
+}
+
+/* Panel del día del Planificador: estado de ausencia y marca "Reemplazo" (ícono + texto). #1f5f8b sobre #e7f1f8: 5.98:1 */
+.tp-enfermero-fila .tp-estado-ausencia {
+    white-space: normal;
+}
+
+.tp-marca-reemplazo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    background: var(--color-info-fondo);
+    color: var(--color-info);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Tabla semanal: franjas más compactas para que el chip entre en un renglón (mismo texto, mismos colores) */
+.tp-tablero td { padding: 0.25rem; }
+.tp-tablero th.tp-tablero__sector { width: 11%; }
+.tp-tablero .tp-franja { padding: 0.3rem 0.35rem; }
+.tp-tablero .cobertura { gap: 0.2rem; padding: 0.1rem 0.3rem; font-size: 0.72rem; }
+.tp-franja__ir { margin-left: auto; color: var(--color-error); font-size: 0.75rem; }
+.tp-franja__cabecera { width: 100%; }

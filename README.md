@@ -81,8 +81,12 @@ y entrar a http://localhost/turnoplaner/public (cambiar `app.baseURL` acorde).
 | HU-12 | Listado, edicion, baja y reactivacion de tipos de turno | Hecha |
 | HU-13 | Asignar, reasignar y eliminar turnos, con control de superposicion; lo que supera la carga semanal se registra como hora extra | Hecha |
 | HU-14 | Calendario mensual por sector: cobertura, asignar/reasignar/quitar con modal (AJAX), disponibilidad real y horas por enfermero | Hecha |
+| HU-15 | Tablero de cobertura: semaforo por sector y franja (semana o dia), areas criticas primero, alertas que llevan al reemplazo o al planificador | Hecha |
+| HU-16 | Ausencias (admin): listado por estado, asignar reemplazo con candidatos disponibles o rechazar con observacion | Hecha |
 | HU-17 | Mi cronograma: turnos propios por mes o semana, resumen de hoy y mañana | Hecha |
-| HU-15, 16, 18, 19, 20 | Tablero de cobertura, coberturas, ausencias, historial, check-in | Pendientes (final) |
+| HU-18 | Informar ausencia a un turno futuro (motivo y descripcion) y seguir su estado en Mis ausencias | Hecha |
+| HU-19 | Mi historial: horas cumplidas contra la carga contratada, guardias, ausencias y detalle por mes o año | Hecha |
+| HU-20 | Marcar ingreso y finalizar guardia con observaciones del pase | Hecha |
 
 ## Pruebas
 
@@ -93,7 +97,7 @@ bash tests/e2e/turnoplaner_e2e.sh
 C:\xampp\php\php.exe spark test:hu05
 ```
 
-`turnoplaner_e2e.sh` recorre los criterios de aceptacion de HU-01 a HU-14 y HU-17 (171 casos) con sesion, CSRF, AJAX y base de datos.
+`turnoplaner_e2e.sh` recorre los criterios de aceptacion de HU-01 a HU-20 (305 casos) con sesion, CSRF, AJAX y base de datos.
 **Reinicia la base local** con `database/turnoplaner.sql` antes de empezar.
 
 ## Donde esta cada cosa
@@ -107,13 +111,15 @@ C:\xampp\php\php.exe spark test:hu05
 | Sectores y tipos de turno (admin) | `app/Controllers/Sectores.php`, `app/Controllers/TiposTurno.php` |
 | Asignacion de turnos y cuadricula semanal | `app/Controllers/Asignaciones.php`, `app/Controllers/Planificador.php` |
 | Panel del admin / portal del enfermero | `app/Controllers/Home.php` / `app/Controllers/Cronograma.php` |
+| Tablero de cobertura y ausencias (admin) | `app/Controllers/Tablero.php`, `app/Controllers/Ausencias.php` |
+| Mis ausencias, historial y marcacion (enfermero) | `app/Controllers/MisAusencias.php`, `app/Controllers/Historial.php`, `app/Controllers/Cronograma.php` |
 | Utilidades comunes de controladores | `app/Controllers/BaseController.php` |
 | Filtros de sesion y de rol | `app/Filters/AuthFilter.php`, `app/Filters/RoleFilter.php` |
 | Manejo de la sesion | `app/Libraries/SesionUsuario.php` |
 | Modelos y entidades | `app/Models/`, `app/Entities/` (baja logica compartida en `app/Models/Concerns/BajaLogica.php`) |
 | Helpers de formularios | `app/Helpers/form_ui_helper.php` |
 | Layout comun y partes compartidas | `app/Views/layouts/main.php`, `app/Views/partials/` |
-| Vistas | `app/Views/auth/`, `app/Views/perfil/`, `app/Views/admin/users/`, `app/Views/home/`, `app/Views/cronograma/` |
+| Vistas | `app/Views/auth/`, `app/Views/perfil/`, `app/Views/admin/` (users, sectores, tipos_turno, asignaciones, planificador, tablero, ausencias), `app/Views/home/`, `app/Views/cronograma/`, `app/Views/mis_ausencias/`, `app/Views/historial/` |
 | Script de base de datos | `database/turnoplaner.sql` |
 | Migraciones y seeders | `app/Database/Migrations/`, `app/Database/Seeds/` (`TurnoplanerSeeder` carga todo) |
 | Pruebas de punta a punta | `tests/e2e/turnoplaner_e2e.sh` |

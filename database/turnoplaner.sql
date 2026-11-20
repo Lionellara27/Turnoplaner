@@ -19,8 +19,9 @@ USE turnoplaner;
 -- Asegura que los acentos se guarden bien al importar desde la consola de Windows
 SET NAMES utf8mb4;
 
--- Permite recrear tablas que se referencian entre si (asignaciones -> usuarios, sectores, tipos_turno)
+-- Permite recrear tablas que se referencian entre si (ausencias -> asignaciones -> usuarios, sectores, tipos_turno)
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS ausencias;
 DROP TABLE IF EXISTS asignaciones;
 
 -- ------------------------------------------------------------
@@ -173,6 +174,8 @@ INSERT INTO tipos_turno (sector_id, nombre, hora_inicio, hora_fin, duracion_minu
 --    - un turno noche de 22:00 a 06:00 termina al dia siguiente;
 --    - si despues cambia el horario del tipo de turno, lo ya asignado no cambia.
 --  Eliminar una asignacion futura = baja logica (deleted_at).
+--  checkin_at / checkout_at / observaciones_pase: marcacion de ingreso,
+--  salida y pase de guardia que hace el enfermero/a (HU-20).
 -- ------------------------------------------------------------
 CREATE TABLE asignaciones (
     id                  INT UNSIGNED      NOT NULL AUTO_INCREMENT,
@@ -186,6 +189,9 @@ CREATE TABLE asignaciones (
     es_extra            TINYINT(1)        NOT NULL DEFAULT 0,
     minutos_extra       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     creado_por          INT UNSIGNED      NULL,              -- administrador que lo asigno
+    checkin_at          DATETIME          NULL DEFAULT NULL, -- ingreso marcado por el enfermero/a (HU-20)
+    checkout_at         DATETIME          NULL DEFAULT NULL, -- fin de guardia marcado (HU-20)
+    observaciones_pase  VARCHAR(1000)     NULL DEFAULT NULL, -- observaciones del pase de guardia (HU-20)
     created_at          DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME          NULL DEFAULT NULL,
     deleted_at          DATETIME          NULL DEFAULT NULL,
@@ -199,10 +205,40 @@ CREATE TABLE asignaciones (
     CONSTRAINT fk_asignaciones_creado_por FOREIGN KEY (creado_por) REFERENCES usuarios (id)
 ) ENGINE=InnoDB;
 
-SET FOREIGN_KEY_CHECKS = 1;
+-- ------------------------------------------------------------
+--  TABLA: ausencias   (HU-18 aviso del enfermero/a, HU-16 reemplazo)
+--  El enfermero/a avisa que no puede cumplir un turno futuro suyo.
+--  Estados:
+--    PENDIENTE -> aviso enviado, el administrador lo esta gestionando
+--    CUBIERTA  -> se asigno un reemplazo (reemplazo_asignacion_id)
+--    RECHAZADA -> el administrador lo rechazo: debe presentarse
+--  "Ausencia activa" = PENDIENTE o CUBIERTA: ese turno no cuenta para
+--  la dotacion ni para las horas semanales. Una asignacion tiene como
+--  maximo una ausencia activa (lo controla la aplicacion).
+--  Nunca se borra: los cambios son de estado.
+-- ------------------------------------------------------------
+CREATE TABLE ausencias (
+    id                       INT UNSIGNED   NOT NULL AUTO_INCREMENT,
+    asignacion_id            INT UNSIGNED   NOT NULL,          -- turno que no va a cumplir
+    usuario_id               INT UNSIGNED   NOT NULL,          -- enfermero/a que avisa
+    motivo                   ENUM('ENFERMEDAD', 'FUERZA_MAYOR', 'LICENCIA_MEDICA', 'OTRO') NOT NULL,
+    descripcion              VARCHAR(500)   NOT NULL,
+    estado                   ENUM('PENDIENTE', 'CUBIERTA', 'RECHAZADA') NOT NULL DEFAULT 'PENDIENTE',
+    reemplazo_asignacion_id  INT UNSIGNED   NULL DEFAULT NULL, -- turno creado para el reemplazante
+    resuelto_por             INT UNSIGNED   NULL DEFAULT NULL, -- administrador que cubrio o rechazo
+    resuelto_at              DATETIME       NULL DEFAULT NULL,
+    observacion_admin        VARCHAR(255)   NULL DEFAULT NULL, -- motivo del rechazo
+    created_at               DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at               DATETIME       NULL DEFAULT NULL,
+    PRIMARY KEY (id),
+    KEY idx_ausencias_asignacion_estado (asignacion_id, estado),
+    KEY idx_ausencias_estado (estado),
+    KEY idx_ausencias_usuario (usuario_id),
+    KEY idx_ausencias_reemplazo (reemplazo_asignacion_id),
+    CONSTRAINT fk_ausencias_asignacion FOREIGN KEY (asignacion_id) REFERENCES asignaciones (id),
+    CONSTRAINT fk_ausencias_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios (id),
+    CONSTRAINT fk_ausencias_reemplazo FOREIGN KEY (reemplazo_asignacion_id) REFERENCES asignaciones (id),
+    CONSTRAINT fk_ausencias_resuelto_por FOREIGN KEY (resuelto_por) REFERENCES usuarios (id)
+) ENGINE=InnoDB;
 
--- ------------------------------------------------------------
---  PROXIMAS TABLAS (se agregan en su HU, no antes):
---    ausencias         -> HU-18
---    coberturas        -> HU-16
--- ------------------------------------------------------------
+SET FOREIGN_KEY_CHECKS = 1;

@@ -8,8 +8,10 @@
  * @var array<string, list<\App\Entities\Asignacion>> $porDia
  * @var array<string, \App\Entities\Asignacion>       $salidas  turno nocturno que termina ese día
  * @var string                                        $hoy, $ahora, $caption
+ * @var array<int, \App\Entities\Ausencia>            $ausencias avisos de ausencia por turno (HU-18)
  */
-$pieza = static fn ($t, string $parte): string => view('cronograma/_turno', ['t' => $t, 'ahora' => $ahora, 'parte' => $parte]);
+$ausencias = $ausencias ?? [];
+$pieza     = static fn ($t, string $parte): string => trim(view('cronograma/_turno', ['t' => $t, 'ahora' => $ahora, 'parte' => $parte, 'ausencias' => $ausencias]));
 $notaSalida = static fn (string $dia): string => isset($salidas[$dia])
     ? 'Sale de ' . esc((string) $salidas[$dia]->tipo_nombre) . ' a las ' . esc($salidas[$dia]->horaFin())
     : '';
@@ -54,7 +56,11 @@ $notaSalida = static fn (string $dia): string => isset($salidas[$dia])
                             <td><?= esc((string) $t->sector_nombre) ?><?= (int) $t->sector_critico === 1 ? ' <span class="small text-body-secondary">(área crítica)</span>' : '' ?></td>
                             <td><?= $pieza($t, 'etiqueta') ?></td>
                             <td><?= $pieza($t, 'horario') ?></td>
-                            <td><?= $pieza($t, 'estado') ?> <?= $pieza($t, 'extra') ?></td>
+                            <td>
+                                <?= $pieza($t, 'estado') ?> <?= $pieza($t, 'extra') ?>
+                                <?php $acciones = $pieza($t, 'acciones'); ?>
+                                <?php if ($acciones !== ''): ?><div class="mt-1"><?= $acciones ?></div><?php endif; ?>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -85,6 +91,8 @@ $notaSalida = static fn (string $dia): string => isset($salidas[$dia])
                         <div><i class="bi bi-clock me-1"></i><?= $pieza($t, 'horario') ?></div>
                         <div class="small text-body-secondary"><i class="bi bi-hospital me-1"></i><?= esc((string) $t->sector_nombre) ?><?= (int) $t->sector_critico === 1 ? ' (área crítica)' : '' ?></div>
                     </div>
+                    <?php $acciones = $pieza($t, 'acciones'); ?>
+                    <?php if ($acciones !== ''): ?><div class="mt-2"><?= $acciones ?></div><?php endif; ?>
                 </div>
             <?php endforeach; ?>
         </li>

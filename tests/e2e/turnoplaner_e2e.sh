@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# TurnoPlaner - pruebas de punta a punta (HU-01 a HU-14 y HU-17) con curl
+# TurnoPlaner - pruebas de punta a punta (HU-01 a HU-20) con curl
 #
 # Recorre los criterios de aceptacion como un usuario real: sesion, CSRF,
 # redirecciones, mensajes en pantalla y datos en la base.
@@ -366,6 +366,215 @@ get z "mi-cronograma?vista=mes" >/dev/null; check "Desde Este mes, el boton Sema
 get a "admin/asignaciones/crear" >/dev/null; cp "$D/out.html" "$D/as.html"; post a admin/asignaciones/crear "$D/as.html" -d "usuario_id=$JUAN&sector_id=1&tipo_turno_id=3&fecha=$MAR" >/dev/null
 get z "mi-cronograma?vista=semana&fecha=$LUN" >/dev/null; check "Turno Noche: muestra el dia de salida" 'texto | grep -q "22:00 →a 06:00 del mié $(date -d $MIE +%d/%m)"'
 check "Al otro dia: nota de salida de la Noche" 'has "Sale de Noche a las 06:00"'
+
+echo "== HU-18 Aviso de ausencia (enfermero/a)"
+pg(){ get "$1" "$2" >/dev/null; cp "$D/out.html" "$D/pg.html"; }   # pagina fresca con token CSRF
+VIE=$(date -d "$LUN +4 day" +%F); SAB=$(date -d "$LUN +5 day" +%F)
+asignar $JUAN 1 2 $MIE >/dev/null; asignar $JUAN 1 2 $JUE >/dev/null; asignar $JUAN 1 2 $VIE >/dev/null; asignar $JUAN 1 2 $SAB >/dev/null
+JLUN=$(sql "SELECT id FROM turnoplaner.asignaciones WHERE usuario_id=$JUAN AND fecha='$LUN' AND tipo_turno_id=1 AND deleted_at IS NULL")
+MLUN=$(sql "SELECT id FROM turnoplaner.asignaciones WHERE usuario_id=$MARIA AND fecha='$LUN' AND tipo_turno_id=1 AND deleted_at IS NULL")
+JSAB="SELECT CONCAT(es_extra,'|',minutos_extra) FROM turnoplaner.asignaciones WHERE usuario_id=$JUAN AND fecha='$SAB' AND deleted_at IS NULL"
+check "Juan con 48 h en la semana: el sabado es hora extra (8 h)" '[[ $(sql "$JSAB") == "1|480" ]]'
+get a "admin/tablero?dia=$LUN" >/dev/null; check "Tablero del lunes antes del aviso: Internacion Mañana Cubierto 3/3" 'has "Cubierto 3/3"'
+# Turnos de ayer de Juan (ya terminados): uno normal y uno que cubrio una ausencia de Maria (para HU-19)
+JAYC=$(sql "INSERT INTO turnoplaner.asignaciones (usuario_id,sector_id,tipo_turno_id,fecha,inicio,fin,duracion_minutos,creado_por) VALUES ($JUAN,1,2,'$AYER','$AYER 14:00:00','$AYER 22:00:00',480,1); SELECT LAST_INSERT_ID();")
+MAYR=$(sql "INSERT INTO turnoplaner.asignaciones (usuario_id,sector_id,tipo_turno_id,fecha,inicio,fin,duracion_minutos,creado_por) VALUES ($MARIA,2,4,'$AYER','$AYER 06:00:00','$AYER 14:00:00',480,1); SELECT LAST_INSERT_ID();")
+JAYR=$(sql "INSERT INTO turnoplaner.asignaciones (usuario_id,sector_id,tipo_turno_id,fecha,inicio,fin,duracion_minutos,creado_por) VALUES ($JUAN,2,4,'$AYER','$AYER 06:00:00','$AYER 14:00:00',480,1); SELECT LAST_INSERT_ID();")
+sql "INSERT INTO turnoplaner.ausencias (asignacion_id,usuario_id,motivo,descripcion,estado,reemplazo_asignacion_id,resuelto_por,resuelto_at) VALUES ($MAYR,$MARIA,'OTRO','Tramite familiar urgente','CUBIERTA',$JAYR,1,NOW())"
+get z mis-ausencias >/dev/null
+check "Mis ausencias: estado vacio y link Informar ausencia al turno del lunes" 'has "Todavía no informó ninguna ausencia" && has "mis-ausencias/nueva/$JLUN"'
+check "Mis ausencias no ofrece turnos que ya empezaron" '! has "mis-ausencias/nueva/$JAYC\""'
+get z "mi-cronograma?vista=semana&fecha=$LUN" >/dev/null; check "Mi cronograma: link Informar ausencia en el turno futuro" 'has "mis-ausencias/nueva/$JLUN"'
+r=$(get z mis-ausencias/nueva/$JLUN); check "Formulario del aviso con motivo, descripcion y confirmacion" '[[ $r == 200* ]] && has "name=\"motivo\"" && has "Licencia médica" && has "name=\"descripcion\"" && has "name=\"confirmo\""'
+cp "$D/out.html" "$D/pg.html"
+post z mis-ausencias/nueva/$JLUN "$D/pg.html" --data-urlencode "descripcion=Fiebre alta desde anoche" -d "confirmo=1" >/dev/null; follow z mis-ausencias/nueva/$JLUN
+check "Sin motivo se rechaza" 'has "Elija el motivo de la ausencia"'
+check "Conserva la descripcion tras el error" 'has "Fiebre alta desde anoche"'
+cp "$D/out.html" "$D/pg.html"
+post z mis-ausencias/nueva/$JLUN "$D/pg.html" -d "motivo=VACACIONES&confirmo=1" --data-urlencode "descripcion=Fiebre alta desde anoche" >/dev/null; follow z mis-ausencias/nueva/$JLUN
+check "Motivo fuera de la lista se rechaza" 'has "Elija un motivo válido"'
+cp "$D/out.html" "$D/pg.html"
+post z mis-ausencias/nueva/$JLUN "$D/pg.html" -d "motivo=ENFERMEDAD&confirmo=1" --data-urlencode "descripcion=   corta   " >/dev/null; follow z mis-ausencias/nueva/$JLUN
+check "Descripcion corta (menos de 10 caracteres sin contar espacios) se rechaza" 'has "al menos 10 caracteres"'
+cp "$D/out.html" "$D/pg.html"
+post z mis-ausencias/nueva/$JLUN "$D/pg.html" -d "motivo=ENFERMEDAD" --data-urlencode "descripcion=$(printf 'x%.0s' {1..501})" >/dev/null; follow z mis-ausencias/nueva/$JLUN
+check "Descripcion de mas de 500 caracteres y sin confirmar se rechaza" 'has "no puede superar los 500" && has "Confirme que no podrá presentarse"'
+pg z mis-ausencias/nueva/$JLUN; post z mis-ausencias/nueva/$JLUN "$D/pg.html" -d "motivo[]=ENFERMEDAD&descripcion[]=x&confirmo=1" >/dev/null; r=$(get z mis-ausencias/nueva/$JLUN)
+check "Campos enviados como arreglo: vuelve al formulario con el error (sin error 500)" '[[ $r == 200* ]] && has "Elija un motivo válido"'
+check "BD: ningun aviso guardado tras los errores" '[[ $(sql "SELECT COUNT(*) FROM turnoplaner.ausencias WHERE asignacion_id=$JLUN") == 0 ]]'
+r=$(get z mis-ausencias/nueva/$MLUN); check "Turno de otra enfermera da 404" '[[ $r == 404* ]]'
+pg z mis-ausencias; r=$(post z mis-ausencias/nueva/$MLUN "$D/pg.html" -d "motivo=ENFERMEDAD&confirmo=1" --data-urlencode "descripcion=Fiebre alta desde anoche")
+check "POST sobre turno ajeno da 404 y no guarda" '[[ $r == 404* ]] && [[ $(sql "SELECT COUNT(*) FROM turnoplaner.ausencias WHERE asignacion_id=$MLUN") == 0 ]]'
+r=$(get z mis-ausencias/nueva/999999); check "Turno inexistente da 404" '[[ $r == 404* ]]'
+r=$(get z mis-ausencias/nueva/$JAYC); check "Turno que ya paso: vuelve a Mis ausencias" '[[ $r == *"/mis-ausencias" ]]'
+follow z mis-ausencias; check "Avisa que solo se informa en turnos que no empezaron" 'has "turnos que todavía no empezaron"'
+pg z mis-ausencias; post z mis-ausencias/nueva/$JAYC "$D/pg.html" -d "motivo=ENFERMEDAD&confirmo=1" --data-urlencode "descripcion=Fiebre alta desde anoche" >/dev/null
+check "POST sobre turno pasado no guarda" '[[ $(sql "SELECT COUNT(*) FROM turnoplaner.ausencias WHERE asignacion_id=$JAYC") == 0 ]]'
+pg z mis-ausencias/nueva/$JLUN
+r=$(post z mis-ausencias/nueva/$JLUN "$D/pg.html" -d "motivo=ENFERMEDAD&confirmo=1" --data-urlencode "descripcion=Fiebre alta desde anoche, con certificado")
+check "Aviso valido vuelve a Mis ausencias" '[[ $r == *"/mis-ausencias" ]]'
+follow z mis-ausencias; check "Confirmacion y estado Aviso enviado, en gestion" 'has "Aviso enviado. La coordinación" && has "Aviso enviado, en gestión" && has "Enfermedad" && has "con certificado"'
+AUS=$(sql "SELECT id FROM turnoplaner.ausencias WHERE asignacion_id=$JLUN")
+check "BD: ausencia PENDIENTE con motivo y quien avisa" '[[ $(sql "SELECT CONCAT(estado,motivo,usuario_id) FROM turnoplaner.ausencias WHERE id=$AUS") == "PENDIENTEENFERMEDAD$JUAN" ]]'
+check "Al avisar se recalculan las horas: el sabado deja de ser hora extra" '[[ $(sql "$JSAB") == "0|0" ]]'
+r=$(get z mis-ausencias/nueva/$JLUN); check "Doble aviso sobre el mismo turno: no abre el formulario" '[[ $r == *"/mis-ausencias" ]]'
+follow z mis-ausencias; check "Explica que ya informo la ausencia" 'has "Ya informó una ausencia para este turno"'
+cp "$D/out.html" "$D/pg.html"; post z mis-ausencias/nueva/$JLUN "$D/pg.html" -d "motivo=OTRO&confirmo=1" --data-urlencode "descripcion=Segundo aviso repetido" >/dev/null
+check "BD: el doble aviso no se guarda" '[[ $(sql "SELECT COUNT(*) FROM turnoplaner.ausencias WHERE asignacion_id=$JLUN") == 1 ]]'
+get z "mi-cronograma?vista=semana&fecha=$LUN" >/dev/null; check "Mi cronograma muestra el estado del aviso y ya no ofrece avisar" 'has "en gestión" && ! has "mis-ausencias/nueva/$JLUN"'
+r=$(curl -s -b "$D/z" -o /dev/null -w "%{http_code}" -d "motivo=OTRO&confirmo=1&descripcion=sin+token+csrf" "$B/mis-ausencias/nueva/$JLUN")
+check "POST del aviso sin token CSRF da 403" '[[ $r == 403 ]]'
+
+echo "== HU-16 Gestion de ausencias y reemplazo (administrador)"
+get a admin/ausencias >/dev/null
+check "Listado: la ausencia pendiente con enfermero/a, motivo y accion Asignar reemplazo" 'has "Perez, Juan" && has "Enfermedad" && has "admin/ausencias/$AUS/reemplazo"'
+check "Menu con el contador de ausencias pendientes" 'has "tp-menu-contador" && has "1 ausencia pendiente"'
+get a "admin/ausencias?estado=RECHAZADA" >/dev/null; check "Filtro Rechazadas no la muestra" '! has "admin/ausencias/$AUS/reemplazo"'
+get a "admin/ausencias?estado=CUBIERTA" >/dev/null; check "Filtro Cubiertas muestra la ausencia de Maria ya cubierta" 'has "Gomez, Maria" && ! has "Fiebre alta"'
+r=$(get a "admin/ausencias?estado=XYZ"); check "Estado invalido en el filtro: muestra Pendientes (sin error)" '[[ $r == 200* ]] && has "admin/ausencias/$AUS/reemplazo"'
+r=$(get a "admin/ausencias?estado[]=TODAS"); check "Filtro en forma de arreglo no rompe" '[[ $r == 200* ]]'
+get a "admin/tablero?dia=$LUN" >/dev/null
+check "El aviso descuenta la dotacion: Falta personal 2/3 y la alerta lleva a Asignar reemplazo" 'has "Falta personal 2/3" && ! has "Cubierto 3/3" && has "admin/ausencias/$AUS/reemplazo"'
+r=$(get a admin/ausencias/$AUS/reemplazo); cp "$D/out.html" "$D/re.html"
+check "Pantalla de reemplazo con el turno y el aviso" '[[ $r == 200* ]] && grep -q "Asignar reemplazo" "$D/re.html" && grep -q "Fiebre alta desde anoche" "$D/re.html"'
+ANA=$(sql "SELECT id FROM turnoplaner.usuarios WHERE dni=36000111"); LUCIA=$(sql "SELECT id FROM turnoplaner.usuarios WHERE dni=35111222")
+check "Solo ofrece candidatos disponibles: Ana si; Maria y Lucia (superpuestas) y Juan (ausente) no" 'grep -q "id=\"reemp-enf-$ANA\"" "$D/re.html" && ! grep -q "id=\"reemp-enf-$MARIA\"" "$D/re.html" && ! grep -q "id=\"reemp-enf-$LUCIA\"" "$D/re.html" && ! grep -q "id=\"reemp-enf-$JUAN\"" "$D/re.html"'
+check "Informa cuantos quedaron afuera" 'grep -q "2 enfermeros/as activos no se muestran" "$D/re.html"'
+post a admin/ausencias/$AUS/reemplazo "$D/re.html" >/dev/null; follow a admin/ausencias/$AUS/reemplazo
+check "Confirmar sin elegir a nadie se rechaza" 'has "Seleccione el enfermero/a que cubrirá el turno"'
+cp "$D/out.html" "$D/re.html"; post a admin/ausencias/$AUS/reemplazo "$D/re.html" -d "usuario_id=$MARIA" >/dev/null; follow a admin/ausencias/$AUS/reemplazo
+check "Candidato con turno superpuesto rechazado en el servidor" 'has "ya no está disponible para este turno"'
+cp "$D/out.html" "$D/re.html"; post a admin/ausencias/$AUS/reemplazo "$D/re.html" -d "usuario_id=$JUAN" >/dev/null; follow a admin/ausencias/$AUS/reemplazo
+check "El propio ausente no puede ser su reemplazo" 'has "tiene que ser otro enfermero/a"'
+check "BD: sigue PENDIENTE y sin turnos nuevos" '[[ $(sql "SELECT estado FROM turnoplaner.ausencias WHERE id=$AUS") == "PENDIENTE" && $(sql "SELECT COUNT(*) FROM turnoplaner.asignaciones WHERE fecha=\"$LUN\" AND tipo_turno_id=1 AND deleted_at IS NULL") == 3 ]]'
+cp "$D/out.html" "$D/re.html"
+r=$(post a admin/ausencias/$AUS/reemplazo "$D/re.html" -d "usuario_id=$ANA"); check "Reemplazo valido vuelve al listado" '[[ $r == *"/admin/ausencias" ]]'
+follow a admin/ausencias; check "Confirma quien cubre y el estado del turno original" 'has "Reemplazo asignado:" && has "Ausente justificado (Cubierto)"'
+NUEVA=$(sql "SELECT reemplazo_asignacion_id FROM turnoplaner.ausencias WHERE id=$AUS")
+check "BD: ausencia CUBIERTA con reemplazo, quien resolvio y cuando" '[[ $(sql "SELECT CONCAT(estado,resuelto_por,(resuelto_at IS NOT NULL)) FROM turnoplaner.ausencias WHERE id=$AUS") == "CUBIERTA11" ]]'
+check "BD: asignacion nueva para Ana, mismo sector, turno, fecha y horario, creada por el admin" '[[ $(sql "SELECT CONCAT(usuario_id,\"|\",sector_id,\"|\",tipo_turno_id,\"|\",inicio,\"|\",creado_por) FROM turnoplaner.asignaciones WHERE id=$NUEVA") == "$ANA|1|1|$LUN 06:00:00|1" ]]'
+get a "admin/tablero?dia=$LUN" >/dev/null; check "Tablero: la franja vuelve a Cubierto 3/3" 'has "Cubierto 3/3" && ! has "admin/ausencias/$AUS/reemplazo"'
+get a "admin/planificador?sector=1&mes=${LUN:0:7}" >/dev/null; check "Planificador: el turno original figura como Ausente justificado (Cubierto)" 'has "Ausente justificado (Cubierto)"'
+get z mis-ausencias >/dev/null; check "El enfermero/a ve Reemplazo asignado y quien lo cubre" 'has "Reemplazo asignado" && has "Brien"'
+r=$(get a admin/ausencias/$AUS/reemplazo); check "Una ausencia ya cubierta no admite otro reemplazo" '[[ $r == 200* ]] && has "Esta ausencia ya fue resuelta (cubierta)" && ! has "reemp-enf-"'
+pg a admin/asignaciones/$JLUN/editar; post a admin/asignaciones/$JLUN/eliminar "$D/pg.html" >/dev/null; follow a admin/asignaciones/$JLUN/editar
+check "No deja quitar el turno original con ausencia (lleva a Ausencias)" 'has "ausencia informada" && [[ $(sql "SELECT deleted_at IS NULL FROM turnoplaner.asignaciones WHERE id=$JLUN") == 1 ]]'
+pg a admin/asignaciones/$JLUN/editar; post a admin/asignaciones/$JLUN/editar "$D/pg.html" -d "usuario_id=$LUCIA&sector_id=1&tipo_turno_id=1&fecha=$LUN" >/dev/null
+check "No deja reasignar el turno original con ausencia" '[[ $(sql "SELECT usuario_id FROM turnoplaner.asignaciones WHERE id=$JLUN") == $JUAN ]]'
+pg a admin/asignaciones/$NUEVA/editar; post a admin/asignaciones/$NUEVA/eliminar "$D/pg.html" >/dev/null
+check "Quitar el turno del reemplazante: la ausencia vuelve a PENDIENTE sin reemplazo" '[[ $(sql "SELECT CONCAT(estado,IFNULL(reemplazo_asignacion_id,\"-\"),IFNULL(resuelto_por,\"-\")) FROM turnoplaner.ausencias WHERE id=$AUS") == "PENDIENTE--" ]]'
+get a "admin/tablero?dia=$LUN" >/dev/null; check "Tablero: vuelve la alerta con el link al reemplazo" 'has "Falta personal 2/3" && has "admin/ausencias/$AUS/reemplazo"'
+pg a admin/ausencias/$AUS/reemplazo; post a admin/ausencias/$AUS/rechazar "$D/pg.html" --data-urlencode "observacion=  no  " >/dev/null; follow a admin/ausencias/$AUS/reemplazo
+check "Rechazo con observacion corta se rechaza" 'has "al menos 5 caracteres" && [[ $(sql "SELECT estado FROM turnoplaner.ausencias WHERE id=$AUS") == "PENDIENTE" ]]'
+cp "$D/out.html" "$D/pg.html"; post a admin/ausencias/$AUS/rechazar "$D/pg.html" --data-urlencode "observacion=$(printf 'x%.0s' {1..256})" >/dev/null; follow a admin/ausencias/$AUS/reemplazo
+check "Rechazo con observacion de mas de 255 caracteres se rechaza" 'has "no puede superar los 255"'
+pg a admin/ausencias/$AUS/reemplazo; post a admin/ausencias/$AUS/rechazar "$D/pg.html" -d "observacion[]=xxxxxxx" >/dev/null; r=$(get a admin/ausencias/$AUS/reemplazo)
+check "Observacion del rechazo como arreglo: vuelve con el error (sin error 500)" '[[ $r == 200* ]] && has "Indique el motivo del rechazo." && [[ $(sql "SELECT estado FROM turnoplaner.ausencias WHERE id=$AUS") == "PENDIENTE" ]]'
+cp "$D/out.html" "$D/pg.html"; r=$(post a admin/ausencias/$AUS/rechazar "$D/pg.html" --data-urlencode "observacion=Falta el certificado medico, debe presentarse")
+check "Rechazo valido vuelve al listado" '[[ $r == *"/admin/ausencias" ]]'
+follow a admin/ausencias; check "Confirma el rechazo" 'has "Ausencia rechazada: Perez, Juan deberá presentarse"'
+check "BD: RECHAZADA con la observacion" '[[ $(sql "SELECT CONCAT(estado,\"|\",observacion_admin) FROM turnoplaner.ausencias WHERE id=$AUS") == "RECHAZADA|Falta el certificado medico, debe presentarse" ]]'
+check "Al rechazar el turno vuelve a contar: el sabado es hora extra otra vez" '[[ $(sql "$JSAB") == "1|480" ]]'
+get z mis-ausencias >/dev/null; check "El enfermero/a ve el rechazo con la observacion y que debe presentarse" 'has "Rechazada: debe presentarse al turno" && has "Falta el certificado medico" && has "Debe presentarse al turno."'
+pg a admin/ausencias; post a admin/ausencias/$AUS/rechazar "$D/pg.html" --data-urlencode "observacion=Otra vez rechazada" >/dev/null; follow a admin/ausencias
+check "Una ausencia ya resuelta no se vuelve a rechazar" 'has "Solo se pueden rechazar ausencias pendientes"'
+pg a admin/ausencias/$AUS/reemplazo; post a admin/ausencias/$AUS/reemplazo "$D/pg.html" -d "usuario_id=$ANA" >/dev/null
+check "Reemplazo sobre una ausencia rechazada no crea turnos" '[[ $(sql "SELECT COUNT(*) FROM turnoplaner.asignaciones WHERE usuario_id=$ANA AND fecha=\"$LUN\" AND deleted_at IS NULL") == 0 ]]'
+MPAS=$(sql "INSERT INTO turnoplaner.asignaciones (usuario_id,sector_id,tipo_turno_id,fecha,inicio,fin,duracion_minutos,creado_por) VALUES ($MARIA,3,9,'$AYER','$AYER 12:00:00','$AYER 18:00:00',360,1); SELECT LAST_INSERT_ID();")
+APAS=$(sql "INSERT INTO turnoplaner.ausencias (asignacion_id,usuario_id,motivo,descripcion) VALUES ($MPAS,$MARIA,'ENFERMEDAD','Aviso de un turno que ya paso'); SELECT LAST_INSERT_ID();")
+r=$(get a admin/ausencias/$APAS/reemplazo); check "Ausencia de un turno terminado: no ofrece reemplazo" '[[ $r == 200* ]] && has "El turno ya terminó" && ! has "reemp-enf-"'
+pg a admin/ausencias/$APAS/reemplazo; post a admin/ausencias/$APAS/reemplazo "$D/pg.html" -d "usuario_id=$ANA" >/dev/null
+check "Reemplazo de un turno terminado no se guarda" '[[ $(sql "SELECT estado FROM turnoplaner.ausencias WHERE id=$APAS") == "PENDIENTE" ]]'
+r=$(get a admin/ausencias/999999/reemplazo); check "Ausencia inexistente da 404" '[[ $r == 404* ]]'
+pg a admin/ausencias; r=$(post a admin/ausencias/999999/rechazar "$D/pg.html" --data-urlencode "observacion=No existe esta ausencia"); check "Rechazar una ausencia inexistente da 404" '[[ $r == 404* ]]'
+pg a admin/ausencias; r=$(post a admin/ausencias/999999/reemplazo "$D/pg.html" -d "usuario_id=$ANA"); check "Reemplazo de una ausencia inexistente da 404" '[[ $r == 404* ]]'
+r=$(curl -s -b "$D/a" -o /dev/null -w "%{http_code}" -d "observacion=sin+token+csrf" "$B/admin/ausencias/$APAS/rechazar"); check "Rechazar sin token CSRF da 403" '[[ $r == 403 ]]'
+r=$(curl -s -b "$D/a" -o /dev/null -w "%{http_code}" -d "usuario_id=$ANA" "$B/admin/ausencias/$APAS/reemplazo"); check "Reemplazo sin token CSRF da 403" '[[ $r == 403 ]]'
+
+echo "== HU-15 Tablero de cobertura"
+r=$(get a admin/tablero); check "Semana actual: sectores, area critica, semaforo con texto y resumen" '[[ $r == 200* ]] && has "Tablero de cobertura" && has "Área crítica" && has "Falta personal" && has "Semana del $(date -d "$(date +%F) -$(( $(date +%u) - 1 )) day" +%d/%m/%Y)" && has "con falta de personal"'
+get a "admin/tablero?semana=$MIE" >/dev/null
+check "?semana= abre la semana de esa fecha (desde el lunes) con Cubierto y Falta personal" 'has "Semana del $(date -d $LUN +%d/%m/%Y)" && has "Cubierto" && has "Falta personal"'
+check "Una alerta sin ausencia pendiente lleva al Planificador del sector y mes" 'has "admin/planificador?sector=2&amp;mes=${LUN:0:7}"'
+check "Navegacion anterior / esta semana / siguiente" 'has "semana=$(date -d "$LUN -7 day" +%F)" && has "semana=$(date -d "$LUN +7 day" +%F)" && has "Esta semana"'
+r=$(get a "admin/tablero?dia=$LUN&alertas=1"); check "Vista dia con solo alertas" '[[ $r == 200* ]] && has "Falta personal" && ! has "Cubierto 3/3"'
+for q in "semana=2026-02-30" "semana=no-fecha" "dia=9999-12-31" "dia=2026-13-01" "dia=%3Cscript%3E" "semana[]=x" "dia[]=x&alertas[]=1" "dia=2100-12-31" "semana=2000-01-01"; do
+  r=$(get a "admin/tablero?$q"); check "Tablero con parametro raro ($q) responde 200" '[[ $r == 200* ]] && ! has "<script>"'
+done
+
+echo "== HU-19 Mi historial"
+MES_AYER=$(date -d "$AYER" +%Y-%m); DIAS_MES=$(date -d "$MES_AYER-01 +1 month -1 day" +%d)
+CARGA=$(awk -v d=$DIAS_MES 'BEGIN{ x=sprintf("%.1f", 40*d/7); sub(/\.0$/,"",x); sub(/\./,",",x); print x }')
+AUS_MES=$(sql "SELECT COUNT(*) FROM turnoplaner.ausencias au JOIN turnoplaner.asignaciones a ON a.id=au.asignacion_id WHERE au.usuario_id=$JUAN AND a.fecha BETWEEN '$MES_AYER-01' AND LAST_DAY('$MES_AYER-01')")
+r=$(get z "mi-historial?mes=$MES_AYER")
+check "Historial del mes: horas cumplidas (16 h) contra la carga contratada" '[[ $r == 200* ]] && texto | grep -q "Horas cumplidas 16 h" && texto | grep -q "de $CARGA h de carga contratada"'
+check "Guardias cumplidas: 2 (1 normal y 1 reemplazo)" 'texto | grep -q "Guardias cumplidas 2" && has "1 normal" && has "1 reemplazo"'
+check "Ausencias registradas del periodo" 'texto | grep -q "Ausencias registradas $AUS_MES "'
+check "Detalle con estado Cumplido y tipos Normal y Reemplazo" 'has "Cumplido</span>" && has ">Reemplazo<" && has ">Normal<"'
+get z "mi-historial?mes=${LUN:0:7}" >/dev/null
+check "Detalle con Ausencia rechazada (y su observacion), Programado y marca HE" 'has "Ausencia rechazada" && has "Falta el certificado medico" && has "Programado" && has ">HE<"'
+check "Privacidad: no muestra turnos de otra enfermera" '! has "Tramite familiar"'
+r=$(get z "mi-historial?anio=${LUN:0:4}"); check "Filtro por año" '[[ $r == 200* ]] && has "Año ${LUN:0:4}" && has "Cumplido</span>"'
+r=$(get z "mi-historial?anio=${LUN:0:4}&mes_numero=1"); check "Filtro año + mes desde el formulario" '[[ $r == 200* ]] && has "enero ${LUN:0:4}"'
+get z "mi-historial?mes=2020-01" >/dev/null; check "Periodo sin turnos: estado vacio" 'has "No tiene turnos registrados en enero 2020"'
+for q in "mes=2026-13" "mes=abc" "mes=2026-1" "anio=99999" "anio=1999" "mes[]=x&anio[]=y" "anio=2026&mes_numero=13"; do
+  r=$(get z "mi-historial?$q"); check "Historial con parametro raro ($q) responde 200" '[[ $r == 200* ]] && has "Horas cumplidas"'
+done
+
+echo "== HU-20 Ingreso y fin de guardia"
+ins(){ sql "INSERT INTO turnoplaner.asignaciones (usuario_id,sector_id,tipo_turno_id,fecha,inicio,fin,duracion_minutos,creado_por) VALUES ($1,2,5,DATE($2),$2,$3,TIMESTAMPDIFF(MINUTE,$2,$3),1); SELECT LAST_INSERT_ID();"; }
+T1=$(ins $JUAN "NOW() - INTERVAL 1 HOUR" "NOW() + INTERVAL 5 HOUR")       # en curso
+T2=$(ins $JUAN "NOW() + INTERVAL 6 HOUR" "NOW() + INTERVAL 12 HOUR")      # empieza en 6 h
+T3=$(ins $JUAN "NOW() - INTERVAL 10 HOUR" "NOW() - INTERVAL 5 HOUR")      # termino hace 5 h
+T4=$(ins $JUAN "NOW() + INTERVAL 20 MINUTE" "NOW() + INTERVAL 6 HOUR")    # empieza en 20 min (ventana abierta), con aviso
+TM=$(ins $MARIA "NOW() - INTERVAL 1 HOUR" "NOW() + INTERVAL 5 HOUR")      # de otra enfermera
+sql "INSERT INTO turnoplaner.ausencias (asignacion_id,usuario_id,motivo,descripcion) VALUES ($T4,$JUAN,'ENFERMEDAD','Aviso cargado para la prueba')"
+get z mi-cronograma >/dev/null; check "Mi cronograma ofrece Marcar ingreso en el turno en curso" 'has "mi-cronograma/$T1/ingreso" && has "Marcar ingreso"'
+check "No ofrece marcar en el turno con aviso de ausencia" '! has "mi-cronograma/$T4/ingreso"'
+pg z mi-cronograma; post z mi-cronograma/$T2/ingreso "$D/pg.html" >/dev/null; follow z mi-cronograma
+check "Ingreso fuera de la ventana (mas de 30 min antes) rechazado" 'has "Todavía no puede marcar el ingreso" && [[ $(sql "SELECT checkin_at IS NULL FROM turnoplaner.asignaciones WHERE id=$T2") == 1 ]]'
+cp "$D/out.html" "$D/pg.html"; post z mi-cronograma/$T3/ingreso "$D/pg.html" >/dev/null; follow z mi-cronograma
+check "Ingreso a un turno terminado rechazado" 'has "El turno ya terminó"'
+cp "$D/out.html" "$D/pg.html"; post z mi-cronograma/$T4/ingreso "$D/pg.html" >/dev/null; follow z mi-cronograma
+check "Ingreso a un turno con ausencia informada rechazado" 'has "tiene una ausencia informada" && [[ $(sql "SELECT checkin_at IS NULL FROM turnoplaner.asignaciones WHERE id=$T4") == 1 ]]'
+cp "$D/out.html" "$D/pg.html"; post z mi-cronograma/$T1/salida "$D/pg.html" >/dev/null; follow z mi-cronograma
+check "Finalizar sin haber marcado el ingreso se rechaza" 'has "Primero tiene que marcar el ingreso"'
+cp "$D/out.html" "$D/pg.html"; r=$(post z mi-cronograma/$T1/ingreso "$D/pg.html")
+check "Ingreso dentro de la ventana aceptado" '[[ $r == *"/mi-cronograma" ]] && [[ $(sql "SELECT checkin_at IS NOT NULL FROM turnoplaner.asignaciones WHERE id=$T1") == 1 ]]'
+follow z mi-cronograma; check "Muestra la hora del ingreso y el formulario de fin de guardia" 'has "Ingreso registrado a las" && has "mi-cronograma/$T1/salida" && has "Observaciones del pase de guardia"'
+cp "$D/out.html" "$D/pg.html"; post z mi-cronograma/$T1/ingreso "$D/pg.html" >/dev/null; follow z mi-cronograma
+check "Doble ingreso rechazado" 'has "ya fue marcado"'
+cp "$D/out.html" "$D/pg.html"; post z mi-cronograma/$T1/salida "$D/pg.html" --data-urlencode "observaciones_pase=$(printf 'x%.0s' {1..1001})" >/dev/null; follow z mi-cronograma
+check "Observaciones de mas de 1000 caracteres rechazadas" 'has "no pueden superar los 1000 caracteres" && [[ $(sql "SELECT checkout_at IS NULL FROM turnoplaner.asignaciones WHERE id=$T1") == 1 ]]'
+cp "$D/out.html" "$D/pg.html"; r=$(post z mi-cronograma/$T1/salida "$D/pg.html" --data-urlencode "observaciones_pase=Cama 4: control de signos cada 2 h. <b>Sin novedades</b>")
+check "Finalizar guardia aceptado" '[[ $r == *"/mi-cronograma" ]]'
+follow z mi-cronograma; check "Confirma la hora de salida y que guardo las observaciones" 'has "Guardia finalizada a las" && has "Se guardaron las observaciones del pase"'
+check "BD: salida y observaciones guardadas tal cual" '[[ $(sql "SELECT CONCAT((checkout_at IS NOT NULL),\"|\",observaciones_pase) FROM turnoplaner.asignaciones WHERE id=$T1") == "1|Cama 4: control de signos cada 2 h. <b>Sin novedades</b>" ]]'
+cp "$D/out.html" "$D/pg.html"; post z mi-cronograma/$T1/salida "$D/pg.html" >/dev/null; follow z mi-cronograma
+check "Doble fin de guardia rechazado" 'has "ya fue finalizada"'
+sql "UPDATE turnoplaner.asignaciones SET checkin_at = inicio WHERE id=$T3"
+cp "$D/out.html" "$D/pg.html"; post z mi-cronograma/$T3/salida "$D/pg.html" >/dev/null; follow z mi-cronograma
+check "Fin de guardia mas de 4 h despues del fin rechazado" 'has "ya no se puede finalizar la guardia" && [[ $(sql "SELECT checkout_at IS NULL FROM turnoplaner.asignaciones WHERE id=$T3") == 1 ]]'
+get z "mi-historial?mes=$(sql "SELECT DATE_FORMAT(fecha,'%Y-%m') FROM turnoplaner.asignaciones WHERE id=$T1")" >/dev/null
+check "El historial muestra ingreso/salida y escapa las observaciones" 'has "Ingreso " && has "Pase de guardia" && has "&lt;b&gt;Sin novedades" && ! has "<b>Sin novedades"'
+pg z mi-cronograma; r=$(post z mi-cronograma/$TM/ingreso "$D/pg.html"); check "Ingreso en el turno de otra enfermera da 404" '[[ $r == 404* ]] && [[ $(sql "SELECT checkin_at IS NULL FROM turnoplaner.asignaciones WHERE id=$TM") == 1 ]]'
+pg z mi-cronograma; r=$(post z mi-cronograma/$TM/salida "$D/pg.html"); check "Salida en el turno de otra enfermera da 404" '[[ $r == 404* ]]'
+pg z mi-cronograma; r=$(post z mi-cronograma/999999/ingreso "$D/pg.html"); check "Ingreso en un turno inexistente da 404" '[[ $r == 404* ]]'
+r=$(get z mi-cronograma/$T2/ingreso); check "Ingreso por GET no existe (404)" '[[ $r == 404* ]]'
+r=$(curl -s -b "$D/z" -o /dev/null -w "%{http_code}" -X POST "$B/mi-cronograma/$T2/ingreso"); check "Ingreso sin token CSRF da 403" '[[ $r == 403 ]]'
+
+echo "== HU-15 a HU-20 Rutas cruzadas por rol"
+for u in admin/tablero admin/ausencias admin/ausencias/$AUS/reemplazo; do
+  r=$(get z $u); check "Un enfermero no entra a $u" '[[ $r == *"/mi-cronograma" ]]'
+done
+for u in mis-ausencias mis-ausencias/nueva/$JLUN mi-historial; do
+  r=$(get a $u); check "El admin no entra a $u (va a su panel)" '[[ $r == *"/inicio" ]]'
+done
+pg a inicio; r=$(post a mi-cronograma/$T2/ingreso "$D/pg.html"); check "El admin no puede marcar ingresos" '[[ $r == *"/inicio" ]] && [[ $(sql "SELECT checkin_at IS NULL FROM turnoplaner.asignaciones WHERE id=$T2") == 1 ]]'
+pg z mi-cronograma; r=$(post z admin/ausencias/$APAS/rechazar "$D/pg.html" --data-urlencode "observacion=Intento de enfermero"); check "Un enfermero no puede rechazar ausencias" '[[ $r == *"/mi-cronograma" ]] && [[ $(sql "SELECT estado FROM turnoplaner.ausencias WHERE id=$APAS") == "PENDIENTE" ]]'
+for u in admin/tablero mis-ausencias mi-historial admin/ausencias; do
+  r=$(get anon2 $u); check "Sin sesion $u va a login" '[[ $r == *"/login" ]]'
+done
 
 echo "== Limite de intentos de login"
 rm -f "$D/t"; get t login >/dev/null; cp "$D/out.html" "$D/f.html"

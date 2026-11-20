@@ -13,6 +13,7 @@
  * @var list<list<string>>                                           $semanas
  * @var array<string, array<int, list<\App\Entities\Asignacion>>>    $grilla
  * @var list<array{fecha:string, turno:string, horario:string, cubiertos:int, minimo:int}> $alertasCobertura
+ * @var int                                                          $ausenciasPendientes HU-16: ausencias pendientes de resolver
  */
 $mesActual   = date('Y-m');
 $esMesActual = $anioMes === $mesActual;
@@ -64,7 +65,7 @@ if ($sector !== null && $tipos !== []) {
 
                 foreach ($asignados as $a) {
                     $deBaja = $a->enfermeroDeBaja();
-                    if (! $deBaja) {
+                    if ($a->cuentaEnDotacion()) {
                         $activosCount++;
                     }
                     $enfermerosLista[] = [
@@ -150,6 +151,26 @@ if ($sector !== null && $tipos !== []) {
         </a>
     </div>
 </section>
+
+<!-- HU-16: ausencias informadas que esperan reemplazo o rechazo -->
+<?php $ausenciasPendientes = (int) ($ausenciasPendientes ?? 0); ?>
+<?php if ($ausenciasPendientes > 0): ?>
+    <div class="alerta alerta--error d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4" role="status">
+        <div class="fw-semibold">
+            <i class="bi bi-person-dash-fill me-1" aria-hidden="true"></i>
+            <?= $ausenciasPendientes === 1 ? 'Hay 1 ausencia informada pendiente de resolver.' : 'Hay ' . $ausenciasPendientes . ' ausencias informadas pendientes de resolver.' ?>
+            <span class="d-block small fw-normal mt-1">Asigne un reemplazo o rechace el aviso para que el turno no quede descubierto.</span>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="<?= base_url('admin/tablero') ?>" class="btn btn-outline-secondary bg-white fw-semibold text-nowrap">
+                <i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>Tablero de cobertura
+            </a>
+            <a href="<?= base_url('admin/ausencias') ?>" class="btn btn-outline-secondary bg-white fw-semibold text-nowrap">
+                <i class="bi bi-person-dash me-1" aria-hidden="true"></i>Gestionar ausencias
+            </a>
+        </div>
+    </div>
+<?php endif; ?>
 
 <!-- Alertas de cobertura del sector en el mes -->
 <?php if ($sector !== null && $alertasCobertura !== []): ?>
@@ -299,7 +320,7 @@ if ($sector !== null && $tipos !== []) {
                                                     if (! $turnoAplicaEnDia($t, $dia, $asignados)) {
                                                         continue;
                                                     }
-                                                    $cant = count(array_filter($asignados, static fn ($a): bool => ! $a->enfermeroDeBaja()));
+                                                    $cant = count(array_filter($asignados, static fn ($a): bool => $a->cuentaEnDotacion()));
                                                     ?>
                                                     <span class="tp-turno-pill" style="--color-turno: <?= esc($t->color, 'attr') ?>;">
                                                         <span class="tp-turno-pill__nombre"><?= esc($t->nombre) ?></span>
@@ -349,7 +370,7 @@ if ($sector !== null && $tipos !== []) {
                                     if (! $turnoAplicaEnDia($t, $dia, $asignados)) {
                                         continue;
                                     }
-                                    $cant = count(array_filter($asignados, static fn ($a): bool => ! $a->enfermeroDeBaja()));
+                                    $cant = count(array_filter($asignados, static fn ($a): bool => $a->cuentaEnDotacion()));
                                     ?>
                                     <span class="tp-turno-pill" style="--color-turno: <?= esc($t->color, 'attr') ?>;">
                                         <span class="tp-turno-pill__nombre"><?= esc($t->nombre) ?></span>

@@ -273,6 +273,34 @@ Clases `.cobertura--ok`, `.cobertura--parcial`, `.cobertura--vacio`. Siempre íc
 - **Regla (HU-13, acordada por el grupo):** superar la carga horaria semanal **no se rechaza**: el turno se guarda y el excedente queda registrado como hora extra (`asignaciones.es_extra` / `minutos_extra`). Se calcula por semana (lunes a domingo), en orden cronológico de inicio, y **se recalcula toda la semana** al crear, reasignar o eliminar un turno (`AsignacionModel::recalcularExtrasSemana()`), así el resultado no depende del orden en que se cargó.
 - **Marca visual:** `.badge-extra` "HE" (`#6d4a00` sobre `#fdf0d5`, 7.07:1) con texto oculto "Hora extra"; nunca solo un `title`. El aviso al asignar dice "(registrado como HORA EXTRA cubierta: N h)".
 
+### 4.13. Tablero de cobertura (HU-15)
+
+- **Ruta:** `admin/tablero` (`?semana=AAAA-MM-DD` o `?dia=AAAA-MM-DD`, `?alertas=1` muestra solo lo que falta cubrir). Se calcula en cada carga: una ausencia informada descuenta personal apenas se registra.
+- **Encabezado:** h1 "Tablero de cobertura" igual que el menú. Botones Semana / Día y Anterior / Esta semana / Siguiente (sin `btn-sm`, con `aria-current`).
+- **Resumen** (`.tp-resumen-tablero`, 3 indicadores): franjas con falta de personal (solo las que no terminaron), franjas cubiertas sobre el total y ausencias pendientes con link a Ausencias. Variantes `--alerta`, `--ok`, `--aviso` y `--neutro` (borde izquierdo y fondo del ícono).
+- **Semáforo por franja** (`.tp-franja`): siempre ícono + texto, con el chip de cobertura de 4.8 ("Cubierto n/m" en verde, "Falta personal n/m" en rojo) y una frase completa oculta para lectores de pantalla.
+- **Franja en rojo = link** (`.tp-franja--link`): si tiene una ausencia pendiente dice "Asignar reemplazo" y lleva a esa pantalla; si no, lleva al Planificador del sector y el mes. Terminada (`--terminada`, fondo `--color-fondo-pasado`) o no vigente (`--no-aplica`, borde punteado) se distinguen por fondo y texto, **nunca con opacidad**.
+- **Áreas críticas primero:** marca escrita `.tp-badge-critica` "Área crítica" (6.55:1) y borde rojo a la izquierda de la fila.
+- **Desde 1400 px:** tabla `.tp-tablero` (filas = sectores, columnas = días, `th scope`). **Debajo:** lista por día con dos franjas por renglón en celular; los días ya pasados de la semana actual van plegados.
+
+### 4.14. Ausencias y reemplazo (admin, HU-16)
+
+- **Listado** `admin/ausencias`: filtro de estado como botones con contador (`.tp-badge-contador`), Pendientes por defecto. Tarjetas debajo de 1200 px y tabla desde 1200 px. Cada ausencia muestra enfermero/a, turno, sector, fecha y horario, motivo, descripción, estado y reemplazante.
+- **Estado de la ausencia** (`.tp-estado-ausencia`, ícono + texto): Pendiente (`--pendiente`, aviso, 5.22:1, `bi-hourglass-split`), Cubierta (`--cubierta`, ok, 6.95:1, `bi-check-circle-fill`), Rechazada (`--rechazada`, error, 6.55:1, `bi-x-circle-fill`).
+- **Menú:** "Ausencias" lleva el contador de pendientes `.tp-menu-contador` (blanco sobre `#a42626`, 7.4:1), con texto oculto "N ausencias pendientes". El Panel muestra un aviso con acceso a Ausencias y al Tablero.
+- **Asignar reemplazo** (`admin/ausencias/{id}/reemplazo`): ficha del turno y de la ausencia, candidatos como **radios reales** reutilizando `_opcion_enfermero.php` (4.10), buscador si hay más de 5, aviso de cuántos quedaron excluidos y estado vacío con link al Planificador. Solo se ofrecen enfermeros/as sin turno superpuesto y con horas disponibles en la semana.
+- **Rechazar:** observación obligatoria (5 a 255 caracteres) que verá el enfermero/a. Con JS se abre un modal; sin JS el mismo link lleva al formulario al pie de la pantalla de la ausencia (`.tp-rechazo-seccion`).
+- **Planificador:** un turno con ausencia activa muestra "Ausente justificado (Cubierto)" o "Ausencia en gestión" y no ofrece Reasignar ni Quitar (botón "Ausencias"); el del reemplazante lleva la marca `.tp-marca-reemplazo` "Reemplazo" (5.98:1).
+
+### 4.15. Portal del enfermero/a: ausencias, historial y marcación (HU-18, HU-19, HU-20)
+
+- **Informar ausencia** (`mis-ausencias/nueva/{id}`): link `.tp-accion-turno` (44 px, texto oculto con turno y fecha) en cada turno futuro propio sin aviso activo, en el calendario, la agenda de celular y el resumen Hoy/Mañana. El formulario muestra el resumen del turno, el **motivo como 4 radios reales** en tarjeta (`.tp-opcion-motivo`, dentro de `fieldset` + `legend`), la descripción con contador (`textarea[data-contador]`, `.tp-contador`, 10 a 500) y la casilla obligatoria "Confirmo que no podré presentarme a este turno" (`.tp-check-grande`, área táctil de 44 px).
+- **Estado del aviso en Mi cronograma** (`.tp-estado-aviso`): "Aviso enviado, en gestión" (aviso), "Reemplazo asignado — no debe presentarse" (info), "Aviso rechazado: debe presentarse al turno" (error).
+- **Mis ausencias:** tarjetas `.tp-aviso` (`--cubierta`, `--rechazada`) con estado, motivo, descripción, observación de la coordinación o reemplazo asignado, más la sección "Informar una ausencia" con los próximos turnos.
+- **Mi historial** (`mi-historial?mes=AAAA-MM` o `?anio=AAAA`): filtro por GET con labels visibles y botón "Filtrar" (sin autoenvío), navegación Anterior / Este mes / Siguiente, tres indicadores (horas cumplidas contra la carga contratada con barra de progreso, guardias normales y reemplazos, ausencias registradas) y el detalle cronológico: tabla desde 1200 px y tarjetas debajo.
+- **Estados del historial** (`.tp-estado-hist--…`, ícono + texto): Cumplido, En curso, Programado, Ausente justificado (Cubierto), Ausencia en gestión, Ausencia rechazada.
+- **Registro de la guardia** (`.tp-marcacion`, en Hoy y en la Noche que sigue en curso): si todavía no abre, dice desde qué hora se puede marcar (nunca un botón muerto); luego "Marcar ingreso"; después "Ingreso registrado a las HH:MM" con el formulario "Finalizar guardia" y las observaciones del pase (opcionales, contador de 1000). Ventanas: ingreso desde 30 min antes del inicio hasta el fin; salida hasta 4 h después del fin.
+
 ## 5. Foco y Accesibilidad
 
 - **Foco visible:** contorno de 2 px en `--color-primario-oscuro` sobre superficies claras y en blanco sobre superficies verdes (barra y encabezados), con `outline-offset: 2px`. Está definido en `app.css`; **prohibido quitarlo**.

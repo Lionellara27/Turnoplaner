@@ -12,7 +12,7 @@
  * @var bool                           $conTexto    true en la lista por día: muestra horario y "Asignar"
  */
 $conTexto     = $conTexto ?? false;
-$activos      = array_values(array_filter($asignados, static fn ($a): bool => ! $a->enfermeroDeBaja()));
+$activos      = array_values(array_filter($asignados, static fn ($a): bool => $a->cuentaEnDotacion()));
 $cantidad     = count($activos);
 $minimo       = (int) $sector->dotacion_minima;
 $terminado    = \App\Models\AsignacionModel::calcularHorario($dia, $tipo)['fin'] <= $ahora;

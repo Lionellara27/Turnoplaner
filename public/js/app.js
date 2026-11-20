@@ -551,7 +551,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Mismo marcado que app/Views/admin/planificador/_opcion_enfermero.php
-    function opcionEnfermero(prefijo, e, opciones) {
+    function opcionEnfermero(prefijo, e, opciones, posicion) {
         var id = parseInt(e.id, 10);
         var idInput = prefijo + '-enf-' + id;
         var estado = e.estado || '';
@@ -568,6 +568,10 @@ document.addEventListener('DOMContentLoaded', function () {
         item.setAttribute('data-buscar', String(e.nombre || '') + ' ' + matricula);
         item.setAttribute('data-especialidad', especialidad);
         item.setAttribute('data-grupos', (estado + (esActual ? ' actual' : '')).trim());
+        // Claves de orden: posición que mandó el servidor (prioridad), carga semanal y apellido
+        item.setAttribute('data-orden-prioridad', String(posicion || 0));
+        item.setAttribute('data-orden-minutos', String(parseInt(e.minutos_semana, 10) || 0));
+        item.setAttribute('data-orden-nombre', String(e.nombre || ''));
 
         var radio = el('input', 'btn-check');
         radio.type = 'radio';
@@ -675,8 +679,8 @@ document.addEventListener('DOMContentLoaded', function () {
             opciones.actualId = opciones.actualId !== undefined ? opciones.actualId : null;
             opciones.seleccionadoId = opciones.seleccionadoId !== undefined ? opciones.seleccionadoId : null;
             var fragmento = document.createDocumentFragment();
-            enfermeros.forEach(function (e) {
-                fragmento.appendChild(opcionEnfermero(prefijo, e, opciones));
+            enfermeros.forEach(function (e, i) {
+                fragmento.appendChild(opcionEnfermero(prefijo, e, opciones, i));
             });
             vaciar(lista);
             lista.appendChild(fragmento);
@@ -1064,11 +1068,28 @@ document.addEventListener('DOMContentLoaded', function () {
                     nombre.appendChild(agregar(el('span', 'badge bg-secondary-subtle text-secondary-emphasis border ms-1'),
                         icono('bi-slash-circle', 'me-1'), 'De baja · no cuenta'));
                 }
-                fila.appendChild(agregar(el('div', 'min-w-0'), nombre, el('div', 'tp-matricula', 'Mat. ' + (enf.matricula || '—'))));
+                // HU-16: ausencia informada y turnos de reemplazo (ícono + texto)
+                if (enf.ausencia) {
+                    var cubierta = enf.ausencia.indexOf('Cubierto') !== -1;
+                    nombre.appendChild(agregar(el('span', 'tp-estado-ausencia ms-1 tp-estado-ausencia--' + (cubierta ? 'cubierta' : 'pendiente')),
+                        icono(cubierta ? 'bi-check-circle-fill' : 'bi-hourglass-split'), enf.ausencia));
+                }
+                if (enf.es_reemplazo) {
+                    nombre.appendChild(agregar(el('span', 'tp-marca-reemplazo ms-1'), icono('bi-arrow-repeat'), 'Reemplazo'));
+                }
+                var datosEnf = agregar(el('div', 'min-w-0'), nombre, el('div', 'tp-matricula', 'Mat. ' + (enf.matricula || '—')));
+                if (enf.marcas) { datosEnf.appendChild(el('div', 'small text-body-secondary', enf.marcas)); }
+                fila.appendChild(datosEnf);
 
                 if (conAcciones) {
                     var queTurno = ' del turno ' + turno.nombre + ' del día ' + dia.titulo;
-                    if (enf.es_futura) {
+                    if (enf.url_ausencia) {
+                        // Con ausencia activa no se reasigna ni se quita desde acá: se gestiona en Ausencias
+                        var verAusencia = el('a', 'btn btn-outline-secondary flex-shrink-0');
+                        verAusencia.href = enf.url_ausencia;
+                        agregar(verAusencia, icono('bi-person-dash', 'me-1'), 'Ausencias', oculto(': ' + enf.nombre + queTurno));
+                        fila.appendChild(verAusencia);
+                    } else if (enf.es_futura) {
                         var acciones = el('div', 'd-flex gap-2 flex-shrink-0');
                         var reasignar = el('a', 'btn btn-outline-secondary btn-icono');
                         reasignar.href = enf.url_editar;
@@ -1297,5 +1318,42 @@ document.addEventListener('DOMContentLoaded', function () {
                 avisar('Contraseña seleccionada: presione Ctrl+C para copiarla.');
             }
         });
+    });
+});
+
+/* ===== HU-18 / HU-19 / HU-20: portal del enfermero ===== */
+/*
+ * Contador de caracteres de los textareas con data-contador="#idDelContador" (aviso de ausencia y
+ * observaciones del pase de guardia). El contador lleva data-max y, si hay mínimo, data-min.
+ * Sin JavaScript queda el texto fijo "Máximo N caracteres" y el servidor valida igual.
+ */
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('textarea[data-contador]').forEach(function (campo) {
+        var contador = document.querySelector(campo.getAttribute('data-contador'));
+        if (!contador) { return; }
+        var max = parseInt(contador.getAttribute('data-max') || campo.getAttribute('maxlength') || '0', 10) || 0;
+        var min = parseInt(contador.getAttribute('data-min') || '0', 10) || 0;
+
+        function actualizar() {
+            var largo = campo.value.length;
+            var util = campo.value.trim().length; // el servidor recorta los espacios de los extremos
+            contador.classList.remove('tp-contador--aviso', 'tp-contador--error');
+
+            if (min > 0 && util > 0 && util < min) {
+                var faltan = min - util;
+                contador.textContent = (faltan === 1 ? 'Falta 1 carácter' : 'Faltan ' + faltan + ' caracteres') + ' (mínimo ' + min + ')';
+                contador.classList.add('tp-contador--aviso');
+                return;
+            }
+            contador.textContent = largo + ' de ' + max + ' caracteres';
+            if (max > 0 && largo >= max) {
+                contador.classList.add('tp-contador--error');
+            } else if (max > 0 && max - largo <= 50) {
+                contador.classList.add('tp-contador--aviso');
+            }
+        }
+
+        campo.addEventListener('input', actualizar);
+        actualizar();
     });
 });

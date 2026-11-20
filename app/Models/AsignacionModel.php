@@ -31,6 +31,9 @@ class AsignacionModel extends Model
     protected $updatedField  = 'updated_at';
     protected $deletedField  = 'deleted_at';
 
+    /** Motivo del último rechazo de eliminarConRecalculo() (mensaje para mostrar), o null. */
+    private ?string $ultimoError = null;
+
     protected $validationRules = [
         'usuario_id'       => 'required|is_natural_no_zero',
         'sector_id'        => 'required|is_natural_no_zero',
@@ -52,6 +55,52 @@ class AsignacionModel extends Model
     public const DISPONIBLE    = 'disponible';
     public const EXTRA         = 'extra';
     public const NO_DISPONIBLE = 'no_disponible';
+
+    /**
+     * Estados de un turno en el historial del enfermero/a (HU-19): código => [etiqueta, ícono Bootstrap].
+     */
+    public const HISTORIAL_CUMPLIDO           = 'cumplido';
+    public const HISTORIAL_PROGRAMADO         = 'programado';
+    public const HISTORIAL_EN_CURSO           = 'en_curso';
+    public const HISTORIAL_AUSENTE_CUBIERTO   = 'ausente_cubierto';
+    public const HISTORIAL_AUSENCIA_GESTION   = 'ausencia_en_gestion';
+    public const HISTORIAL_AUSENCIA_RECHAZADA = 'ausencia_rechazada';
+
+    public const ESTADOS_HISTORIAL = [
+        self::HISTORIAL_CUMPLIDO           => ['Cumplido', 'bi-check-circle-fill'],
+        self::HISTORIAL_PROGRAMADO         => ['Programado', 'bi-calendar-event'],
+        self::HISTORIAL_EN_CURSO           => ['En curso', 'bi-play-circle-fill'],
+        self::HISTORIAL_AUSENTE_CUBIERTO   => ['Ausente justificado (Cubierto)', 'bi-person-check'],
+        self::HISTORIAL_AUSENCIA_GESTION   => ['Ausencia en gestión', 'bi-hourglass-split'],
+        self::HISTORIAL_AUSENCIA_RECHAZADA => ['Ausencia rechazada', 'bi-x-circle'],
+    ];
+
+    /**
+     * Columnas calculadas con la ausencia del turno (HU-16 / HU-18), para sumar al SELECT de las consultas
+     * que devuelven entidades Asignacion:
+     *  - ausencia_id / ausencia_estado: la ausencia activa (PENDIENTE o CUBIERTA), o NULL.
+     *  - reemplazo_de_ausencia_id: si este turno se creó para cubrir una ausencia (CUBIERTA), su id.
+     * Son subconsultas por índice (asignacion_id / reemplazo_asignacion_id): no multiplican filas.
+     */
+    public const SQL_DATOS_AUSENCIA =
+        "(SELECT au_a.id FROM ausencias au_a WHERE au_a.asignacion_id = asignaciones.id AND au_a.estado IN ('PENDIENTE','CUBIERTA') ORDER BY au_a.id DESC LIMIT 1) AS ausencia_id, "
+        . "(SELECT au_b.estado FROM ausencias au_b WHERE au_b.asignacion_id = asignaciones.id AND au_b.estado IN ('PENDIENTE','CUBIERTA') ORDER BY au_b.id DESC LIMIT 1) AS ausencia_estado, "
+        . "(SELECT au_c.id FROM ausencias au_c WHERE au_c.reemplazo_asignacion_id = asignaciones.id AND au_c.estado = 'CUBIERTA' ORDER BY au_c.id DESC LIMIT 1) AS reemplazo_de_ausencia_id";
+
+    /**
+     * Condición SQL "el turno no tiene ausencia activa" (o, con $soloCubiertas, "no tiene ausencia CUBIERTA").
+     *
+     * Reglas (HU-16 / HU-18):
+     *  - Un turno con ausencia PENDIENTE o CUBIERTA no cuenta para la dotación ni para las horas de la semana.
+     *  - Para la superposición solo se ignora la CUBIERTA: la PENDIENTE todavía puede ser rechazada y el
+     *    enfermero/a tendría que presentarse.
+     */
+    public static function sinAusencia(string $tabla = 'asignaciones', bool $soloCubiertas = false): string
+    {
+        $estados = $soloCubiertas ? "'CUBIERTA'" : "'PENDIENTE','CUBIERTA'";
+
+        return "NOT EXISTS (SELECT 1 FROM ausencias au_x WHERE au_x.asignacion_id = {$tabla}.id AND au_x.estado IN ({$estados}))";
+    }
 
     /** "Noviembre 2026" a partir de 'YYYY-MM' o 'YYYY-MM-DD'. */
     public static function nombreMes(string $fecha): string
@@ -128,12 +177,14 @@ class AsignacionModel extends Model
 
     /**
      * Turno del mismo enfermero/a que se pisa en el tiempo con [$inicio, $fin).
+     * Un turno con ausencia CUBIERTA no bloquea (otro lo cubre); uno con ausencia PENDIENTE sí.
      */
     public function superpuesta(int $usuarioId, string $inicio, string $fin, ?int $excluirId = null): ?Asignacion
     {
         $this->where('usuario_id', $usuarioId)
             ->where('inicio <', $fin)
-            ->where('fin >', $inicio);
+            ->where('fin >', $inicio)
+            ->where(self::sinAusencia('asignaciones', true), null, false);
 
         if ($excluirId !== null) {
             $this->where('id !=', $excluirId);
@@ -144,6 +195,7 @@ class AsignacionModel extends Model
 
     /**
      * Minutos ya asignados al enfermero/a en la semana (lunes a domingo) que contiene la fecha.
+     * No cuenta los turnos con ausencia activa.
      */
     public function minutosEnSemana(int $usuarioId, string $fecha, ?int $excluirId = null): int
     {
@@ -155,7 +207,8 @@ class AsignacionModel extends Model
             ->where('usuario_id', $usuarioId)
             ->where('fecha >=', $lunes)
             ->where('fecha <=', $domingo)
-            ->where('deleted_at', null);
+            ->where('deleted_at', null)
+            ->where(self::sinAusencia(), null, false);
 
         if ($excluirId !== null) {
             $builder->where('id !=', $excluirId);
@@ -165,7 +218,7 @@ class AsignacionModel extends Model
     }
 
     /**
-     * Minutos asignados (totales y extras) al enfermero/a en el mes 'YYYY-MM'.
+     * Minutos asignados (totales y extras) al enfermero/a en el mes 'YYYY-MM' (sin turnos con ausencia activa).
      *
      * @return array{total: int, extra: int}
      */
@@ -180,7 +233,8 @@ class AsignacionModel extends Model
             ->where('usuario_id', $usuarioId)
             ->where('fecha >=', $desde)
             ->where('fecha <=', $hasta)
-            ->where('deleted_at', null);
+            ->where('deleted_at', null)
+            ->where(self::sinAusencia(), null, false);
 
         if ($excluirId !== null) {
             $builder->where('id !=', $excluirId);
@@ -208,6 +262,8 @@ class AsignacionModel extends Model
      * minutos_extra = clamp(acumulado - máximo, 0, duración). Así el resultado depende solo de los
      * turnos que existen, nunca del orden en que se cargaron.
      *
+     * Los turnos con ausencia activa (PENDIENTE o CUBIERTA, HU-18) no suman minutos y quedan en 0 extra.
+     *
      * Debe llamarse DENTRO de la transacción que modificó los turnos: bloquea las filas de la semana
      * (FOR UPDATE) y escribe con el Query Builder (sin validación del modelo ni cambio de updated_at,
      * porque no es una edición del administrador sino un dato derivado).
@@ -221,7 +277,8 @@ class AsignacionModel extends Model
         $maximo = (int) ($carga->carga_horaria_max ?? 0) * 60;
 
         $turnos = $this->db->query(
-            'SELECT id, duracion_minutos, es_extra, minutos_extra FROM asignaciones '
+            'SELECT id, duracion_minutos, es_extra, minutos_extra, '
+            . '(CASE WHEN ' . self::sinAusencia() . ' THEN 0 ELSE 1 END) AS con_ausencia FROM asignaciones '
             . 'WHERE usuario_id = ? AND fecha BETWEEN ? AND ? AND deleted_at IS NULL '
             . 'ORDER BY inicio ASC, id ASC FOR UPDATE',
             [$usuarioId, $lunes, $domingo]
@@ -230,11 +287,16 @@ class AsignacionModel extends Model
         $acumulado = 0;
         foreach ($turnos as $turno) {
             $duracion = (int) $turno['duracion_minutos'];
-            $acumulado += $duracion;
 
-            // Sin carga horaria definida no hay contra qué medir: no se marca nada como extra.
-            $minutosExtra = $maximo > 0 ? max(0, min($duracion, $acumulado - $maximo)) : 0;
-            $esExtra      = $minutosExtra > 0 ? 1 : 0;
+            if ((int) $turno['con_ausencia'] === 1) {
+                // Turno con ausencia activa (HU-18): no suma horas ni puede ser extra.
+                $minutosExtra = 0;
+            } else {
+                $acumulado += $duracion;
+                // Sin carga horaria definida no hay contra qué medir: no se marca nada como extra.
+                $minutosExtra = $maximo > 0 ? max(0, min($duracion, $acumulado - $maximo)) : 0;
+            }
+            $esExtra = $minutosExtra > 0 ? 1 : 0;
 
             if ((int) $turno['es_extra'] !== $esExtra || (int) $turno['minutos_extra'] !== $minutosExtra) {
                 $this->db->table($this->table)
@@ -295,6 +357,7 @@ class AsignacionModel extends Model
             ->where('fecha >=', $desde)
             ->where('fecha <=', $hasta)
             ->where('deleted_at', null)
+            ->where(self::sinAusencia(), null, false)
             ->groupBy('usuario_id')
             ->get()
             ->getResultArray();
@@ -313,6 +376,7 @@ class AsignacionModel extends Model
     /**
      * Minutos asignados a cada enfermero/a en la semana que empieza el lunes indicado.
      * $excluirId deja afuera un turno (el que se está reasignando, para no contarlo dos veces).
+     * No cuenta los turnos con ausencia activa (sus horas no son carga del enfermero/a).
      *
      * @return array<int, int> [usuario_id => minutos]
      */
@@ -325,7 +389,8 @@ class AsignacionModel extends Model
             ->selectSum('duracion_minutos', 'total')
             ->where('fecha >=', $lunes)
             ->where('fecha <=', $domingo)
-            ->where('deleted_at', null);
+            ->where('deleted_at', null)
+            ->where(self::sinAusencia(), null, false);
 
         if ($excluirId !== null) {
             $builder->where('id !=', $excluirId);
@@ -420,7 +485,7 @@ class AsignacionModel extends Model
 
     /**
      * Para cada enfermero/a que tenga un turno que se pisa con [$inicio, $fin), un texto que explica con cuál.
-     * Una sola consulta para todos (antes era una por enfermero).
+     * Una sola consulta para todos (antes era una por enfermero). Los turnos con ausencia CUBIERTA no cuentan.
      *
      * @param list<int> $usuarioIds
      *
@@ -436,6 +501,7 @@ class AsignacionModel extends Model
             ->where('asignaciones.inicio <', $fin)
             ->where('asignaciones.fin >', $inicio)
             ->where('asignaciones.deleted_at', null)
+            ->where(self::sinAusencia('asignaciones', true), null, false)
             ->orderBy('asignaciones.inicio', 'ASC');
 
         if ($excluirId !== null) {
@@ -510,8 +576,28 @@ class AsignacionModel extends Model
         try {
             // Datos que tenía el turno antes de reasignarlo (enfermero y semana viejos), leídos con bloqueo.
             $anterior = $excluirId !== null
-                ? $this->db->query('SELECT usuario_id, fecha FROM asignaciones WHERE id = ? FOR UPDATE', [$excluirId])->getRow()
+                ? $this->db->query('SELECT usuario_id, sector_id, tipo_turno_id, fecha FROM asignaciones WHERE id = ? FOR UPDATE', [$excluirId])->getRow()
                 : null;
+
+            // Un turno con ausencia activa (HU-18) se gestiona desde Ausencias, no se reasigna desde acá.
+            if ($excluirId !== null && ($bloqueo = $this->motivoBloqueoPorAusencia($excluirId)) !== null) {
+                $this->db->transRollback();
+
+                return ['general' => $bloqueo];
+            }
+
+            // El turno de un reemplazante no puede pasar al mismo enfermero/a que avisó la ausencia.
+            if ($excluirId !== null) {
+                $cubierta = $this->db->query(
+                    "SELECT usuario_id FROM ausencias WHERE reemplazo_asignacion_id = ? AND estado = 'CUBIERTA' LIMIT 1",
+                    [$excluirId]
+                )->getRow();
+                if ($cubierta !== null && (int) $cubierta->usuario_id === (int) $enfermero->id) {
+                    $this->db->transRollback();
+
+                    return ['usuario_id' => 'Este turno cubre una ausencia de ' . $enfermero->getNombreCompleto() . ': elija a otro enfermero/a como reemplazo.'];
+                }
+            }
 
             $usuariosABloquear = array_unique(array_filter([(int) $enfermero->id, (int) ($anterior->usuario_id ?? 0)]));
             sort($usuariosABloquear);
@@ -556,6 +642,13 @@ class AsignacionModel extends Model
                 $this->recalcularExtrasSemana((int) $anterior->usuario_id, (string) $anterior->fecha);
             }
 
+            // Si el turno era el reemplazo de una ausencia (HU-16) y se movió a otro sector, franja o día,
+            // ya no cubre esa ausencia: vuelve a PENDIENTE para que el administrador busque otro reemplazo.
+            if ($anterior !== null
+                && ((int) $anterior->sector_id !== $sectorId || (int) $anterior->tipo_turno_id !== (int) $tipo->id || (string) $anterior->fecha !== $fecha)) {
+                $this->liberarAusenciaCubiertaPor($id);
+            }
+
             // Devolver al controlador el valor definitivo (para el mensaje "registrado como hora extra").
             $final = $this->db->query('SELECT es_extra, minutos_extra FROM asignaciones WHERE id = ?', [$id])->getRow();
             $asignacion->id            = $id;
@@ -577,19 +670,38 @@ class AsignacionModel extends Model
      * Elimina un turno (baja lógica: deleted_at, nunca DELETE físico) y recalcula las horas extras de esa
      * semana del enfermero/a en la misma transacción: al sacar un turno, otros de la semana pueden dejar
      * de ser hora extra.
+     *
+     * HU-16 / HU-18:
+     *  - Si el turno tiene una ausencia activa (PENDIENTE o CUBIERTA) NO se elimina: devuelve false y
+     *    ultimoError() explica que se gestiona desde Ausencias.
+     *  - Si el turno es el de un reemplazante, la ausencia que cubría vuelve a PENDIENTE
+     *    (reemplazo_asignacion_id = NULL).
      */
     public function eliminarConRecalculo(Asignacion $asignacion): bool
     {
+        $this->ultimoError = null;
         $this->db->transBegin();
 
         try {
             $this->db->query('SELECT id FROM usuarios WHERE id = ? FOR UPDATE', [(int) $asignacion->usuario_id]);
+            $this->db->query('SELECT id FROM asignaciones WHERE id = ? FOR UPDATE', [(int) $asignacion->id]);
+
+            // Un turno con ausencia activa (HU-18) no se quita: se resuelve desde Ausencias.
+            if (($bloqueo = $this->motivoBloqueoPorAusencia((int) $asignacion->id)) !== null) {
+                $this->ultimoError = $bloqueo;
+                $this->db->transRollback();
+
+                return false;
+            }
 
             if (! $this->delete((int) $asignacion->id)) {
                 $this->db->transRollback();
 
                 return false;
             }
+
+            // Si era el turno de un reemplazante (HU-16), la ausencia queda otra vez sin cubrir.
+            $this->liberarAusenciaCubiertaPor((int) $asignacion->id);
 
             // El turno eliminado conserva sus valores como historia; los que quedan se recalculan.
             $this->recalcularExtrasSemana((int) $asignacion->usuario_id, (string) $asignacion->fecha);
@@ -608,6 +720,8 @@ class AsignacionModel extends Model
     /**
      * Turnos de un sector en un mes 'YYYY-MM', agrupados por fecha y tipo de turno,
      * con los datos del enfermero/a (para el calendario mensual del administrador).
+     * Incluye los turnos con ausencia (para mostrarlos con su estado); para contar la dotación usar
+     * Asignacion::cuentaEnDotacion().
      *
      * @return array<string, array<int, list<Asignacion>>> [fecha][tipo_turno_id] => asignaciones
      */
@@ -617,6 +731,7 @@ class AsignacionModel extends Model
         $hasta = (new DateTimeImmutable($desde))->modify('last day of this month')->format('Y-m-d');
 
         $filas = $this->select('asignaciones.*, usuarios.nombre, usuarios.apellido, usuarios.matricula, usuarios.especialidad, usuarios.estado AS usuario_estado')
+            ->select(self::SQL_DATOS_AUSENCIA, false)
             ->join('usuarios', 'usuarios.id = asignaciones.usuario_id')
             ->where('asignaciones.sector_id', $sectorId)
             ->where('asignaciones.fecha >=', $desde)
@@ -642,6 +757,7 @@ class AsignacionModel extends Model
         $domingo = (new DateTimeImmutable($lunes))->modify('+6 days')->format('Y-m-d');
 
         $filas = $this->select('asignaciones.*, usuarios.nombre, usuarios.apellido, usuarios.estado AS usuario_estado')
+            ->select(self::SQL_DATOS_AUSENCIA, false)
             ->join('usuarios', 'usuarios.id = asignaciones.usuario_id')
             ->where('asignaciones.sector_id', $sectorId)
             ->where('asignaciones.fecha >=', $lunes)
@@ -658,7 +774,8 @@ class AsignacionModel extends Model
     }
 
     /**
-     * Turnos de un enfermero/a entre dos fechas (inclusive).
+     * Turnos de un enfermero/a entre dos fechas (inclusive), con los datos de ausencia (ausencia_id,
+     * ausencia_estado, reemplazo_de_ausencia_id) y de marcación (checkin_at, checkout_at, observaciones_pase).
      *
      * @return list<Asignacion>
      */
@@ -666,6 +783,7 @@ class AsignacionModel extends Model
     {
         return $this->select('asignaciones.*, sectores.nombre AS sector_nombre, sectores.es_critico AS sector_critico, '
                 . 'tipos_turno.nombre AS tipo_nombre, tipos_turno.color AS tipo_color')
+            ->select(self::SQL_DATOS_AUSENCIA, false)
             ->join('sectores', 'sectores.id = asignaciones.sector_id')
             ->join('tipos_turno', 'tipos_turno.id = asignaciones.tipo_turno_id')
             ->where('asignaciones.usuario_id', $usuarioId)
@@ -675,27 +793,546 @@ class AsignacionModel extends Model
             ->findAll();
     }
 
+    /** Turno en curso o próximo del enfermero/a (no incluye los que tienen ausencia CUBIERTA: no va). */
     public function proximoDelEnfermero(int $usuarioId, string $ahora): ?Asignacion
     {
         return $this->select('asignaciones.*, sectores.nombre AS sector_nombre, sectores.es_critico AS sector_critico, '
                 . 'tipos_turno.nombre AS tipo_nombre, tipos_turno.color AS tipo_color')
+            ->select(self::SQL_DATOS_AUSENCIA, false)
             ->join('sectores', 'sectores.id = asignaciones.sector_id')
             ->join('tipos_turno', 'tipos_turno.id = asignaciones.tipo_turno_id')
             ->where('asignaciones.usuario_id', $usuarioId)
             ->where('asignaciones.fin >', $ahora)
+            ->where(self::sinAusencia('asignaciones', true), null, false)
             ->orderBy('asignaciones.inicio', 'ASC')
             ->first();
     }
 
+    /** Próximo turno que todavía no empezó (no incluye los que tienen ausencia CUBIERTA). */
     public function siguienteProgramado(int $usuarioId, string $ahora): ?Asignacion
     {
         return $this->select('asignaciones.*, sectores.nombre AS sector_nombre, sectores.es_critico AS sector_critico, '
                 . 'tipos_turno.nombre AS tipo_nombre, tipos_turno.color AS tipo_color')
+            ->select(self::SQL_DATOS_AUSENCIA, false)
             ->join('sectores', 'sectores.id = asignaciones.sector_id')
             ->join('tipos_turno', 'tipos_turno.id = asignaciones.tipo_turno_id')
             ->where('asignaciones.usuario_id', $usuarioId)
             ->where('asignaciones.inicio >', $ahora)
+            ->where(self::sinAusencia('asignaciones', true), null, false)
             ->orderBy('asignaciones.inicio', 'ASC')
+            ->first();
+    }
+
+    /**
+     * Mensaje del último rechazo de eliminarConRecalculo() (por ejemplo, turno con ausencia activa), o null
+     * si falló por otro motivo o no falló.
+     */
+    public function ultimoError(): ?string
+    {
+        return $this->ultimoError;
+    }
+
+    /**
+     * Si el turno tiene una ausencia activa (PENDIENTE o CUBIERTA), el mensaje que explica por qué no se
+     * puede reasignar ni quitar desde el planificador; si no tiene, null.
+     */
+    public function motivoBloqueoPorAusencia(int $asignacionId): ?string
+    {
+        $fila = $this->db->query(
+            "SELECT estado FROM ausencias WHERE asignacion_id = ? AND estado IN ('PENDIENTE','CUBIERTA') ORDER BY id DESC LIMIT 1",
+            [$asignacionId]
+        )->getRow();
+
+        if ($fila === null) {
+            return null;
+        }
+
+        return $fila->estado === 'CUBIERTA'
+            ? 'Este turno tiene una ausencia informada y ya fue cubierto por un reemplazo: no se puede reasignar ni quitar. Para cambiar la cobertura, quite el turno del reemplazante o gestiónelo desde Ausencias.'
+            : 'Este turno tiene una ausencia informada en gestión: no se puede reasignar ni quitar desde acá. Resuélvala desde Ausencias (asignar reemplazo o rechazar).';
+    }
+
+    /**
+     * Si $reemplazoAsignacionId era el turno de un reemplazante, la ausencia que cubría vuelve a PENDIENTE.
+     * Se llama dentro de la transacción que quitó o movió ese turno.
+     */
+    private function liberarAusenciaCubiertaPor(int $reemplazoAsignacionId): void
+    {
+        $this->db->table('ausencias')
+            ->where('reemplazo_asignacion_id', $reemplazoAsignacionId)
+            ->where('estado', 'CUBIERTA')
+            ->update([
+                'estado'                  => 'PENDIENTE',
+                'reemplazo_asignacion_id' => null,
+                'resuelto_por'            => null,
+                'resuelto_at'             => null,
+                'updated_at'              => date('Y-m-d H:i:s'),
+            ]);
+    }
+
+    // ------------------------------------------------------------------
+    //  HU-15: tablero de cobertura
+    // ------------------------------------------------------------------
+
+    /**
+     * Cobertura de la semana (lunes a domingo) que contiene $lunes, por sector activo × día × tipo de turno.
+     *
+     * @return array{
+     *     desde: string, hasta: string, dias: list<string>,
+     *     sectores: list<array{
+     *         sector: \App\Entities\Sector,
+     *         tipos: list<TipoTurno>,
+     *         celdas: array<string, array<int, array{
+     *             asignados: int, minimo: int, alerta: bool, aplica: bool, terminado: bool,
+     *             ausencia_pendiente_id: int|null, ausencias_pendientes: int
+     *         }>>,
+     *         alertas: int
+     *     }>,
+     *     total_alertas: int,
+     *     ausencias_pendientes: int
+     * }
+     */
+    public function coberturaSemana(string $lunes): array
+    {
+        $lunes = self::lunesDe($lunes);
+
+        return $this->coberturaRango($lunes, (new DateTimeImmutable($lunes))->modify('+6 days')->format('Y-m-d'));
+    }
+
+    /**
+     * Cobertura de un solo día (misma forma que coberturaSemana(), con un único elemento en 'dias').
+     *
+     * @return array<string, mixed>
+     */
+    public function coberturaDia(string $fecha): array
+    {
+        return $this->coberturaRango($fecha, $fecha);
+    }
+
+    /**
+     * Arma la cobertura con 4 consultas fijas (sectores, tipos, conteos y ausencias pendientes), sin importar
+     * cuántas celdas haya.
+     *
+     * - asignados: turnos que cuentan para la dotación (enfermero/a activo, sin ausencia PENDIENTE/CUBIERTA).
+     * - minimo:    dotación mínima del sector.
+     * - alerta:    asignados < minimo, solo en celdas que aplican (el tipo de turno ya existía ese día).
+     * - aplica:    false si el tipo de turno se creó después de ese día y no tiene turnos (no se evalúa).
+     * - terminado: el turno de ese día ya terminó (según el horario del tipo de turno).
+     * - ausencia_pendiente_id: una ausencia PENDIENTE de esa franja (la más próxima a resolver), o null.
+     *
+     * @return array<string, mixed>
+     */
+    private function coberturaRango(string $desde, string $hasta): array
+    {
+        $dias   = [];
+        $cursor = new DateTimeImmutable($desde);
+        $fin    = new DateTimeImmutable($hasta);
+        while ($cursor <= $fin) {
+            $dias[] = $cursor->format('Y-m-d');
+            $cursor = $cursor->modify('+1 day');
+        }
+
+        $sectores = (new SectorModel())->activos();
+        $tiposPorSector = [];
+        foreach ((new TipoTurnoModel())->activos() as $tipo) {
+            $tiposPorSector[(int) $tipo->sector_id][] = $tipo;
+        }
+
+        // Conteo de turnos efectivos por sector / fecha / tipo.
+        $conteos = [];
+        $filas   = $this->db->query(
+            'SELECT a.sector_id, a.fecha, a.tipo_turno_id, COUNT(*) AS cantidad FROM asignaciones a '
+            . "JOIN usuarios u ON u.id = a.usuario_id AND u.estado = 'ACTIVO' "
+            . 'WHERE a.deleted_at IS NULL AND a.fecha BETWEEN ? AND ? AND ' . self::sinAusencia('a') . ' '
+            . 'GROUP BY a.sector_id, a.fecha, a.tipo_turno_id',
+            [$desde, $hasta]
+        )->getResultArray();
+        foreach ($filas as $f) {
+            $conteos[(int) $f['sector_id']][(string) $f['fecha']][(int) $f['tipo_turno_id']] = (int) $f['cantidad'];
+        }
+
+        // Ausencias pendientes por franja.
+        $pendientes      = [];
+        $totalPendientes = 0;
+        $filas           = $this->db->query(
+            'SELECT a.sector_id, a.fecha, a.tipo_turno_id, MIN(au.id) AS ausencia_id, COUNT(*) AS cantidad FROM ausencias au '
+            . 'JOIN asignaciones a ON a.id = au.asignacion_id AND a.deleted_at IS NULL '
+            . "WHERE au.estado = 'PENDIENTE' AND a.fecha BETWEEN ? AND ? "
+            . 'GROUP BY a.sector_id, a.fecha, a.tipo_turno_id',
+            [$desde, $hasta]
+        )->getResultArray();
+        foreach ($filas as $f) {
+            $pendientes[(int) $f['sector_id']][(string) $f['fecha']][(int) $f['tipo_turno_id']] = [(int) $f['ausencia_id'], (int) $f['cantidad']];
+            $totalPendientes += (int) $f['cantidad'];
+        }
+
+        $ahora        = date('Y-m-d H:i:s');
+        $resultado    = [];
+        $totalAlertas = 0;
+
+        foreach ($sectores as $sector) {
+            $sid    = (int) $sector->id;
+            $tipos  = $tiposPorSector[$sid] ?? [];
+            $minimo = (int) $sector->dotacion_minima;
+            $celdas = [];
+            $alertasSector = 0;
+
+            foreach ($dias as $dia) {
+                foreach ($tipos as $tipo) {
+                    $tid       = (int) $tipo->id;
+                    $asignados = $conteos[$sid][$dia][$tid] ?? 0;
+                    [$ausId, $ausCant] = $pendientes[$sid][$dia][$tid] ?? [null, 0];
+                    $creado    = $tipo->created_at ? substr((string) $tipo->created_at, 0, 10) : null;
+                    $aplica    = $asignados > 0 || $ausCant > 0 || $creado === null || $dia >= $creado;
+                    $alerta    = $aplica && $asignados < $minimo;
+
+                    if ($alerta) {
+                        $alertasSector++;
+                    }
+
+                    $celdas[$dia][$tid] = [
+                        'asignados'             => $asignados,
+                        'minimo'                => $minimo,
+                        'alerta'                => $alerta,
+                        'aplica'                => $aplica,
+                        'terminado'             => self::calcularHorario($dia, $tipo)['fin'] <= $ahora,
+                        'ausencia_pendiente_id' => $ausId,
+                        'ausencias_pendientes'  => $ausCant,
+                    ];
+                }
+            }
+
+            $totalAlertas += $alertasSector;
+            $resultado[]   = [
+                'sector'  => $sector,
+                'tipos'   => $tipos,
+                'celdas'  => $celdas,
+                'alertas' => $alertasSector,
+            ];
+        }
+
+        return [
+            'desde'                => $desde,
+            'hasta'                => $hasta,
+            'dias'                 => $dias,
+            'sectores'             => $resultado,
+            'total_alertas'        => $totalAlertas,
+            'ausencias_pendientes' => $totalPendientes,
+        ];
+    }
+
+    // ------------------------------------------------------------------
+    //  HU-19: historial del enfermero/a
+    // ------------------------------------------------------------------
+
+    /**
+     * Turnos del enfermero/a entre $desde y $hasta (inclusive, por fecha de inicio), en orden cronológico,
+     * con su estado calculado. Tres consultas fijas (turnos, ausencias, reemplazos).
+     *
+     * Estado (código en 'estado', etiqueta e ícono en ESTADOS_HISTORIAL):
+     *  - ausente_cubierto:    tiene ausencia CUBIERTA.
+     *  - ausencia_en_gestion: tiene ausencia PENDIENTE.
+     *  - ausencia_rechazada:  su última ausencia fue RECHAZADA (y no tiene otra activa): debía presentarse.
+     *  - si no: cumplido (ya terminó) / en_curso / programado.
+     * 'cuenta_horas' indica si el turno suma a las horas cumplidas (terminado y sin ausencia activa).
+     *
+     * @return list<array{
+     *     id: int, fecha: string, inicio: string, fin: string, hora_inicio: string, hora_fin: string,
+     *     termina_dia_siguiente: bool, sector_id: int, sector_nombre: string, sector_critico: bool,
+     *     tipo_turno_id: int, tipo_nombre: string, tipo_color: string,
+     *     duracion_minutos: int, horas: float, horas_texto: string,
+     *     tipo: string, es_reemplazo: bool,
+     *     estado: string, estado_texto: string, estado_icono: string, cuenta_horas: bool,
+     *     es_extra: bool, minutos_extra: int,
+     *     checkin_at: string|null, checkout_at: string|null, hora_ingreso: string, hora_salida: string,
+     *     observaciones_pase: string|null,
+     *     ausencia_id: int|null, ausencia_estado: string|null, ausencia_motivo: string|null, observacion_admin: string|null
+     * }>
+     */
+    public function historialDeUsuario(int $usuarioId, string $desde, string $hasta, ?string $ahora = null): array
+    {
+        $ahora = $ahora ?? date('Y-m-d H:i:s');
+
+        $turnos = $this->db->query(
+            'SELECT a.id, a.fecha, a.inicio, a.fin, a.duracion_minutos, a.es_extra, a.minutos_extra, '
+            . 'a.checkin_at, a.checkout_at, a.observaciones_pase, a.sector_id, a.tipo_turno_id, '
+            . 's.nombre AS sector_nombre, s.es_critico AS sector_critico, t.nombre AS tipo_nombre, t.color AS tipo_color '
+            . 'FROM asignaciones a '
+            . 'LEFT JOIN sectores s ON s.id = a.sector_id '
+            . 'LEFT JOIN tipos_turno t ON t.id = a.tipo_turno_id '
+            . 'WHERE a.usuario_id = ? AND a.deleted_at IS NULL AND a.fecha BETWEEN ? AND ? '
+            . 'ORDER BY a.inicio ASC, a.id ASC',
+            [$usuarioId, $desde, $hasta]
+        )->getResultArray();
+
+        if ($turnos === []) {
+            return [];
+        }
+
+        $ids = array_map(static fn (array $t): int => (int) $t['id'], $turnos);
+        $marcadores = implode(',', array_fill(0, count($ids), '?'));
+
+        // Ausencias de esos turnos: se queda con la activa; si no hay activa, con la última rechazada.
+        $ausencias = [];
+        $filas     = $this->db->query(
+            "SELECT id, asignacion_id, estado, motivo, observacion_admin FROM ausencias WHERE asignacion_id IN ({$marcadores}) ORDER BY id ASC",
+            $ids
+        )->getResultArray();
+        foreach ($filas as $f) {
+            $aid    = (int) $f['asignacion_id'];
+            $actual = $ausencias[$aid] ?? null;
+            $activa = in_array($f['estado'], ['PENDIENTE', 'CUBIERTA'], true);
+            if ($actual === null || $activa || ! in_array($actual['estado'], ['PENDIENTE', 'CUBIERTA'], true)) {
+                $ausencias[$aid] = $f;
+            }
+        }
+
+        // Turnos que son reemplazo de una ausencia cubierta.
+        $reemplazos = [];
+        $filas      = $this->db->query(
+            "SELECT reemplazo_asignacion_id FROM ausencias WHERE estado = 'CUBIERTA' AND reemplazo_asignacion_id IN ({$marcadores})",
+            $ids
+        )->getResultArray();
+        foreach ($filas as $f) {
+            $reemplazos[(int) $f['reemplazo_asignacion_id']] = true;
+        }
+
+        $resultado = [];
+        foreach ($turnos as $t) {
+            $id        = (int) $t['id'];
+            $ausencia  = $ausencias[$id] ?? null;
+            $ausEstado = $ausencia['estado'] ?? null;
+            $activa    = in_array($ausEstado, ['PENDIENTE', 'CUBIERTA'], true);
+            $terminado = (string) $t['fin'] <= $ahora;
+
+            if ($ausEstado === 'CUBIERTA') {
+                $estado = self::HISTORIAL_AUSENTE_CUBIERTO;
+            } elseif ($ausEstado === 'PENDIENTE') {
+                $estado = self::HISTORIAL_AUSENCIA_GESTION;
+            } elseif ($ausEstado === 'RECHAZADA') {
+                $estado = self::HISTORIAL_AUSENCIA_RECHAZADA;
+            } elseif ($terminado) {
+                $estado = self::HISTORIAL_CUMPLIDO;
+            } elseif ((string) $t['inicio'] <= $ahora) {
+                $estado = self::HISTORIAL_EN_CURSO;
+            } else {
+                $estado = self::HISTORIAL_PROGRAMADO;
+            }
+
+            $color = (string) ($t['tipo_color'] ?? '');
+            $esReemplazo = isset($reemplazos[$id]);
+
+            $resultado[] = [
+                'id'                    => $id,
+                'fecha'                 => (string) $t['fecha'],
+                'inicio'                => (string) $t['inicio'],
+                'fin'                   => (string) $t['fin'],
+                'hora_inicio'           => substr((string) $t['inicio'], 11, 5),
+                'hora_fin'              => substr((string) $t['fin'], 11, 5),
+                'termina_dia_siguiente' => substr((string) $t['fin'], 0, 10) > (string) $t['fecha'],
+                'sector_id'             => (int) $t['sector_id'],
+                'sector_nombre'         => (string) ($t['sector_nombre'] ?? 'Sector'),
+                'sector_critico'        => (int) ($t['sector_critico'] ?? 0) === 1,
+                'tipo_turno_id'         => (int) $t['tipo_turno_id'],
+                'tipo_nombre'           => (string) ($t['tipo_nombre'] ?? 'Turno'),
+                'tipo_color'            => preg_match('/^#[0-9a-fA-F]{6}$/', $color) === 1 ? strtolower($color) : TipoTurno::COLOR_DEFECTO,
+                'duracion_minutos'      => (int) $t['duracion_minutos'],
+                'horas'                 => round((int) $t['duracion_minutos'] / 60, 1),
+                'horas_texto'           => self::horasTexto((int) $t['duracion_minutos']),
+                'tipo'                  => $esReemplazo ? 'Reemplazo' : 'Normal',
+                'es_reemplazo'          => $esReemplazo,
+                'estado'                => $estado,
+                'estado_texto'          => self::ESTADOS_HISTORIAL[$estado][0],
+                'estado_icono'          => self::ESTADOS_HISTORIAL[$estado][1],
+                'cuenta_horas'          => $terminado && ! $activa,
+                'es_extra'              => (int) $t['es_extra'] === 1,
+                'minutos_extra'         => (int) $t['minutos_extra'],
+                'checkin_at'            => $t['checkin_at'] !== null ? (string) $t['checkin_at'] : null,
+                'checkout_at'           => $t['checkout_at'] !== null ? (string) $t['checkout_at'] : null,
+                'hora_ingreso'          => $t['checkin_at'] !== null ? substr((string) $t['checkin_at'], 11, 5) : '',
+                'hora_salida'           => $t['checkout_at'] !== null ? substr((string) $t['checkout_at'], 11, 5) : '',
+                'observaciones_pase'    => $t['observaciones_pase'] !== null ? (string) $t['observaciones_pase'] : null,
+                'ausencia_id'           => $ausencia !== null ? (int) $ausencia['id'] : null,
+                'ausencia_estado'       => $ausEstado,
+                'ausencia_motivo'       => $ausencia['motivo'] ?? null,
+                'observacion_admin'     => $ausencia['observacion_admin'] ?? null,
+            ];
+        }
+
+        return $resultado;
+    }
+
+    /**
+     * KPIs del historial (HU-19) para el período [$desde, $hasta].
+     *
+     * - horas_cumplidas: turnos ya terminados y sin ausencia activa (1 decimal).
+     * - carga_contratada: carga_horaria_max semanal × días del período / 7 (1 decimal).
+     * - guardias_*: turnos cumplidos (mismo criterio que las horas), separando normales y reemplazos.
+     * - ausencias_registradas: ausencias que el enfermero/a informó en turnos del período (cualquier estado).
+     *
+     * $filas: el resultado de historialDeUsuario() para el mismo período (para no repetir la consulta).
+     *
+     * @param list<array<string, mixed>>|null $filas
+     *
+     * @return array{
+     *     minutos_cumplidos: int, horas_cumplidas: float, horas_cumplidas_texto: string,
+     *     carga_semanal: int, dias_periodo: int, carga_contratada: float, porcentaje: int,
+     *     guardias_total: int, guardias_normales: int, guardias_reemplazo: int,
+     *     ausencias_registradas: int, turnos_total: int
+     * }
+     */
+    public function resumenHistorial(int $usuarioId, string $desde, string $hasta, ?array $filas = null, ?string $ahora = null): array
+    {
+        $filas = $filas ?? $this->historialDeUsuario($usuarioId, $desde, $hasta, $ahora);
+
+        $minutos   = 0;
+        $normales  = 0;
+        $reemplazo = 0;
+        foreach ($filas as $f) {
+            if (! $f['cuenta_horas']) {
+                continue;
+            }
+            $minutos += (int) $f['duracion_minutos'];
+            if ($f['es_reemplazo']) {
+                $reemplazo++;
+            } else {
+                $normales++;
+            }
+        }
+
+        $carga    = (int) ($this->db->query('SELECT carga_horaria_max FROM usuarios WHERE id = ?', [$usuarioId])->getRow()->carga_horaria_max ?? 0);
+        $dias     = (int) (new DateTimeImmutable($desde))->diff(new DateTimeImmutable($hasta))->days + 1;
+        $contrato = round($carga * $dias / 7, 1);
+        $horas    = round($minutos / 60, 1);
+
+        $ausencias = (int) ($this->db->query(
+            'SELECT COUNT(*) AS total FROM ausencias au JOIN asignaciones a ON a.id = au.asignacion_id '
+            . 'WHERE au.usuario_id = ? AND a.fecha BETWEEN ? AND ?',
+            [$usuarioId, $desde, $hasta]
+        )->getRow()->total ?? 0);
+
+        return [
+            'minutos_cumplidos'     => $minutos,
+            'horas_cumplidas'       => $horas,
+            'horas_cumplidas_texto' => self::horasTexto($minutos),
+            'carga_semanal'         => $carga,
+            'dias_periodo'          => $dias,
+            'carga_contratada'      => $contrato,
+            'porcentaje'            => $contrato > 0 ? (int) round($horas * 100 / $contrato) : 0,
+            'guardias_total'        => $normales + $reemplazo,
+            'guardias_normales'     => $normales,
+            'guardias_reemplazo'    => $reemplazo,
+            'ausencias_registradas' => $ausencias,
+            'turnos_total'          => count($filas),
+        ];
+    }
+
+    // ------------------------------------------------------------------
+    //  HU-20: marcación de ingreso y fin de guardia
+    // ------------------------------------------------------------------
+
+    /**
+     * Marca el ingreso del enfermero/a a su turno.
+     * Ventana: desde 30 min antes del inicio hasta el fin. Sin ausencia activa y sin ingreso previo.
+     *
+     * @return array{ok: bool, error: string|null, no_encontrada: bool, hora: string|null}
+     *         no_encontrada = true si el turno no existe o no es del usuario (el controlador responde 404).
+     */
+    public function marcarIngreso(int $usuarioId, int $asignacionId, ?string $ahora = null): array
+    {
+        $ahora = $ahora ?? date('Y-m-d H:i:s');
+        $turno = $this->turnoPropioParaMarcar($usuarioId, $asignacionId);
+
+        if ($turno === null) {
+            return ['ok' => false, 'error' => 'No se encontró el turno.', 'no_encontrada' => true, 'hora' => null];
+        }
+
+        $error = null;
+        if ($turno->tieneAusenciaActiva()) {
+            $error = 'Este turno tiene una ausencia informada: no se puede marcar el ingreso.';
+        } elseif ($turno->tieneIngreso()) {
+            $error = 'El ingreso a este turno ya fue marcado a las ' . $turno->horaIngreso() . '.';
+        } elseif ($ahora < $turno->aperturaIngreso()) {
+            $error = 'Todavía no puede marcar el ingreso: se habilita ' . Asignacion::MINUTOS_ANTES_INGRESO
+                . ' minutos antes del inicio (a las ' . substr($turno->aperturaIngreso(), 11, 5) . ').';
+        } elseif ($ahora >= (string) $turno->fin) {
+            $error = 'El turno ya terminó: no se puede marcar el ingreso.';
+        }
+
+        if ($error !== null) {
+            return ['ok' => false, 'error' => $error, 'no_encontrada' => false, 'hora' => null];
+        }
+
+        // La condición "checkin_at IS NULL" evita una doble marca si llegan dos pedidos a la vez.
+        $this->db->table($this->table)
+            ->where('id', $asignacionId)
+            ->where('checkin_at', null)
+            ->update(['checkin_at' => $ahora]);
+
+        if ($this->db->affectedRows() !== 1) {
+            return ['ok' => false, 'error' => 'El ingreso a este turno ya fue marcado.', 'no_encontrada' => false, 'hora' => null];
+        }
+
+        return ['ok' => true, 'error' => null, 'no_encontrada' => false, 'hora' => substr($ahora, 11, 5)];
+    }
+
+    /**
+     * Finaliza la guardia y guarda las observaciones del pase (opcional, máx. 1000 caracteres).
+     * Requiere ingreso marcado; ventana hasta 4 h después del fin. Sin ausencia activa ni salida previa.
+     *
+     * @return array{ok: bool, error: string|null, no_encontrada: bool, hora: string|null}
+     */
+    public function marcarSalida(int $usuarioId, int $asignacionId, ?string $observaciones, ?string $ahora = null): array
+    {
+        $ahora = $ahora ?? date('Y-m-d H:i:s');
+        $turno = $this->turnoPropioParaMarcar($usuarioId, $asignacionId);
+
+        if ($turno === null) {
+            return ['ok' => false, 'error' => 'No se encontró el turno.', 'no_encontrada' => true, 'hora' => null];
+        }
+
+        $observaciones = trim((string) $observaciones);
+
+        $error = null;
+        if ($turno->tieneAusenciaActiva()) {
+            $error = 'Este turno tiene una ausencia informada: no se puede finalizar la guardia.';
+        } elseif (! $turno->tieneIngreso()) {
+            $error = 'Primero tiene que marcar el ingreso al turno.';
+        } elseif ($turno->tieneSalida()) {
+            $error = 'La guardia ya fue finalizada a las ' . $turno->horaSalida() . '.';
+        } elseif ($ahora > $turno->cierreSalida()) {
+            $error = 'Pasaron más de ' . Asignacion::HORAS_DESPUES_SALIDA . ' horas desde el fin del turno: ya no se puede finalizar la guardia.';
+        } elseif (mb_strlen($observaciones) > Asignacion::MAX_OBSERVACIONES_PASE) {
+            $error = 'Las observaciones del pase de guardia no pueden superar los ' . Asignacion::MAX_OBSERVACIONES_PASE . ' caracteres.';
+        }
+
+        if ($error !== null) {
+            return ['ok' => false, 'error' => $error, 'no_encontrada' => false, 'hora' => null];
+        }
+
+        $this->db->table($this->table)
+            ->where('id', $asignacionId)
+            ->where('checkout_at', null)
+            ->where('checkin_at IS NOT NULL', null, false)
+            ->update([
+                'checkout_at'        => $ahora,
+                'observaciones_pase' => $observaciones !== '' ? $observaciones : null,
+            ]);
+
+        if ($this->db->affectedRows() !== 1) {
+            return ['ok' => false, 'error' => 'La guardia ya fue finalizada.', 'no_encontrada' => false, 'hora' => null];
+        }
+
+        return ['ok' => true, 'error' => null, 'no_encontrada' => false, 'hora' => substr($ahora, 11, 5)];
+    }
+
+    /** Turno no eliminado del usuario, con los datos de ausencia (para validar la marcación). */
+    private function turnoPropioParaMarcar(int $usuarioId, int $asignacionId): ?Asignacion
+    {
+        return $this->select('asignaciones.*')
+            ->select(self::SQL_DATOS_AUSENCIA, false)
+            ->where('asignaciones.id', $asignacionId)
+            ->where('asignaciones.usuario_id', $usuarioId)
             ->first();
     }
 

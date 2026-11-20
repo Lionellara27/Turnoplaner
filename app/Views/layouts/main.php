@@ -20,11 +20,20 @@ $menu = $rol === 'ADMIN'
             ['admin/sectores', 'bi-hospital', 'Sectores'],
             ['admin/tipos-turno', 'bi-clock', 'Tipos de turno'],
             ['admin/planificador', 'bi-calendar-week', 'Planificador', ['admin/asignaciones/*']],
+            // HU-15 / HU-16: el 5.º elemento es el contador de ausencias pendientes (número y texto para lectores de pantalla)
+            ['admin/tablero', 'bi-grid-3x3-gap', 'Tablero de cobertura'],
+            ['admin/ausencias', 'bi-person-dash', 'Ausencias', [], (static function (): array {
+                $n = (new \App\Models\AusenciaModel())->contarPendientes();
+
+                return [$n, $n === 1 ? '1 ausencia pendiente' : $n . ' ausencias pendientes'];
+            })()],
         ],
     ]
     : [
         'Mis turnos' => [
             ['mi-cronograma', 'bi-calendar-week', 'Mi cronograma'],
+            ['mis-ausencias', 'bi-person-x', 'Mis ausencias'],
+            ['mi-historial', 'bi-clock-history', 'Mi historial'],
         ],
     ];
 $menuCuenta = [
@@ -38,10 +47,15 @@ $itemMenu = static function (array $item) use ($esActual): string {
     [$ruta, $icono, $texto] = $item;
     // El 4.º elemento (opcional) son rutas hijas que también marcan el ítem (asignar turno → Planificador)
     $actual = $esActual($ruta) || array_filter($item[3] ?? [], static fn (string $r): bool => url_is($r)) !== [];
+    // El 5.º elemento (opcional) es un contador [número, texto completo]: solo se muestra si es mayor que 0
+    [$cuenta, $textoCuenta] = $item[4] ?? [0, ''];
+    $badge = $cuenta > 0
+        ? '<span class="badge rounded-pill tp-menu-contador"><span aria-hidden="true">' . (int) $cuenta . '</span><span class="visually-hidden">' . esc($textoCuenta) . '</span></span>'
+        : '';
 
     return '<li class="nav-item"><a class="nav-link' . ($actual ? ' active' : '') . '" href="' . base_url($ruta) . '"'
-        . ($actual ? ' aria-current="page"' : '') . ' title="' . esc($texto, 'attr') . '">'
-        . '<i class="bi ' . $icono . '" aria-hidden="true"></i><span class="menu-lateral__texto">' . esc($texto) . '</span></a></li>';
+        . ($actual ? ' aria-current="page"' : '') . ' title="' . esc($texto . ($cuenta > 0 ? ' (' . $textoCuenta . ')' : ''), 'attr') . '">'
+        . '<i class="bi ' . $icono . '" aria-hidden="true"></i><span class="menu-lateral__texto">' . esc($texto) . '</span>' . $badge . '</a></li>';
 };
 ?>
 <!DOCTYPE html>

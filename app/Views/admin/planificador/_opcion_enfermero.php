@@ -8,6 +8,7 @@
  * @var array{id:int, nombre:string, especialidad:?string, matricula:?string, horas_texto:string,
  *            estado:string, motivo:string, checked?:bool, actual?:bool, bloqueado?:bool} $o
  *     estado: "disponible" | "extra" | "no_disponible" | "" (todavía no calculado)
+ *     orden: posición en que la mandó el servidor (prioridad); minutos: carga de la semana (para ordenar)
  */
 $id        = (int) $o['id'];
 $idInput   = $prefijo . '-enf-' . $id;
@@ -26,7 +27,10 @@ $grupos    = trim($estado . ($actual ? ' actual' : ''));
 <div class="tp-enfermero-item" data-filtro-item
      data-buscar="<?= esc(mb_strtolower($nombre . ' ' . $matricula), 'attr') ?>"
      data-especialidad="<?= esc($esp, 'attr') ?>"
-     data-grupos="<?= esc($grupos, 'attr') ?>">
+     data-grupos="<?= esc($grupos, 'attr') ?>"
+     data-orden-prioridad="<?= (int) ($o['orden'] ?? 0) ?>"
+     data-orden-minutos="<?= (int) ($o['minutos'] ?? 0) ?>"
+     data-orden-nombre="<?= esc($nombre, 'attr') ?>">
     <input type="radio" class="btn-check" name="usuario_id" id="<?= esc($idInput, 'attr') ?>" value="<?= $id ?>" required
            aria-labelledby="<?= esc($idInput, 'attr') ?>-nombre" aria-describedby="<?= esc($idInput, 'attr') ?>-datos <?= esc($idInput, 'attr') ?>-estado"
            <?= ! empty($o['checked']) ? 'checked' : '' ?> <?= $disabled ? 'disabled' : '' ?>>

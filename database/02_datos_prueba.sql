@@ -1,6 +1,7 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+TRUNCATE TABLE ausencias;
 TRUNCATE TABLE asignaciones;
 TRUNCATE TABLE tipos_turno;
 TRUNCATE TABLE sectores;
@@ -410,7 +411,50 @@ CALL sp_poblar_turnos_demo();
 DROP PROCEDURE sp_poblar_turnos_demo;
 
 -- ==========================================================
--- 5. HORAS EXTRAS COHERENTES CON LA REGLA SEMANAL
+-- 5. AUSENCIAS DE DEMOSTRACIÓN (HU-16 / HU-18), en la semana próxima
+-- ==========================================================
+-- Fechas relativas a hoy: se toman turnos ya cargados de la semana que viene (lunes a domingo).
+--   - 3 PENDIENTES: María Gómez (enfermera@turnoplaner.local), Guardia (ID 18) y UTI (ID 24).
+--   - 1 CUBIERTA: Lucía Fernández (ID 4), reemplazada por Malena Campos (ID 42, sin otros turnos).
+--   - 1 RECHAZADA: otro turno de María Gómez, con la observación del administrador.
+SET @lunes_prox   = DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 7 DAY);
+SET @domingo_prox = DATE_ADD(@lunes_prox, INTERVAL 6 DAY);
+
+SET @t_maria_1 = (SELECT id FROM asignaciones WHERE usuario_id = 2  AND fecha BETWEEN @lunes_prox AND @domingo_prox AND deleted_at IS NULL ORDER BY inicio ASC LIMIT 1);
+SET @t_maria_2 = (SELECT id FROM asignaciones WHERE usuario_id = 2  AND fecha BETWEEN @lunes_prox AND @domingo_prox AND deleted_at IS NULL ORDER BY inicio ASC LIMIT 1 OFFSET 1);
+SET @t_guardia = (SELECT id FROM asignaciones WHERE usuario_id = 18 AND fecha BETWEEN @lunes_prox AND @domingo_prox AND deleted_at IS NULL ORDER BY inicio ASC LIMIT 1 OFFSET 1);
+SET @t_uti     = (SELECT id FROM asignaciones WHERE usuario_id = 24 AND fecha BETWEEN @lunes_prox AND @domingo_prox AND deleted_at IS NULL ORDER BY inicio ASC LIMIT 1 OFFSET 2);
+SET @t_lucia   = (SELECT id FROM asignaciones WHERE usuario_id = 4  AND fecha BETWEEN @lunes_prox AND @domingo_prox AND deleted_at IS NULL ORDER BY inicio ASC LIMIT 1);
+
+INSERT INTO ausencias (asignacion_id, usuario_id, motivo, descripcion, estado, created_at, updated_at)
+SELECT id, usuario_id, 'ENFERMEDAD', 'Cuadro febril con indicación médica de reposo por 48 horas.', 'PENDIENTE', NOW() - INTERVAL 3 HOUR, NOW() - INTERVAL 3 HOUR
+FROM asignaciones WHERE id = @t_maria_1;
+
+INSERT INTO ausencias (asignacion_id, usuario_id, motivo, descripcion, estado, created_at, updated_at)
+SELECT id, usuario_id, 'FUERZA_MAYOR', 'Corte de ruta por temporal: no hay transporte desde la localidad.', 'PENDIENTE', NOW() - INTERVAL 1 HOUR, NOW() - INTERVAL 1 HOUR
+FROM asignaciones WHERE id = @t_guardia;
+
+INSERT INTO ausencias (asignacion_id, usuario_id, motivo, descripcion, estado, created_at, updated_at)
+SELECT id, usuario_id, 'LICENCIA_MEDICA', 'Licencia médica por cirugía programada, presento el certificado.', 'PENDIENTE', NOW() - INTERVAL 30 MINUTE, NOW() - INTERVAL 30 MINUTE
+FROM asignaciones WHERE id = @t_uti;
+
+-- Ausencia cubierta: primero el turno del reemplazante (mismo sector, tipo, fecha y horario), después la ausencia.
+INSERT INTO asignaciones (usuario_id, sector_id, tipo_turno_id, fecha, inicio, fin, duracion_minutos, es_extra, minutos_extra, creado_por, created_at, updated_at)
+SELECT 42, sector_id, tipo_turno_id, fecha, inicio, fin, duracion_minutos, 0, 0, 1, NOW(), NOW()
+FROM asignaciones WHERE id = @t_lucia;
+SET @t_reemplazo = IF(ROW_COUNT() > 0, LAST_INSERT_ID(), NULL);
+
+INSERT INTO ausencias (asignacion_id, usuario_id, motivo, descripcion, estado, reemplazo_asignacion_id, resuelto_por, resuelto_at, created_at, updated_at)
+SELECT id, usuario_id, 'ENFERMEDAD', 'Gastroenteritis, el médico de cabecera indicó reposo.', 'CUBIERTA', @t_reemplazo, 1, NOW() - INTERVAL 1 HOUR, NOW() - INTERVAL 5 HOUR, NOW() - INTERVAL 1 HOUR
+FROM asignaciones WHERE id = @t_lucia AND @t_reemplazo IS NOT NULL;
+
+INSERT INTO ausencias (asignacion_id, usuario_id, motivo, descripcion, estado, resuelto_por, resuelto_at, observacion_admin, created_at, updated_at)
+SELECT id, usuario_id, 'OTRO', 'Tengo un trámite personal que no puedo reprogramar ese día.', 'RECHAZADA', 1, NOW() - INTERVAL 2 HOUR,
+       'No hay personal disponible para cubrir ese turno. Debe presentarse.', NOW() - INTERVAL 6 HOUR, NOW() - INTERVAL 2 HOUR
+FROM asignaciones WHERE id = @t_maria_2;
+
+-- ==========================================================
+-- 6. HORAS EXTRAS COHERENTES CON LA REGLA SEMANAL
 -- ==========================================================
 -- El procedimiento de arriba carga los turnos sector por sector, no en orden cronológico, y en algunos
 -- sectores ni siquiera calcula las extras. Acá se recalculan TODAS con la misma regla que usa la
@@ -419,6 +463,7 @@ DROP PROCEDURE sp_poblar_turnos_demo;
 --   turnos en orden de inicio acumulando minutos; cada turno es extra en la parte que supera
 --   carga_horaria_max * 60  ->  minutos_extra = clamp(acumulado - maximo, 0, duracion).
 --   Sin carga horaria definida no hay extras.
+--   Los turnos con ausencia activa (PENDIENTE o CUBIERTA) no suman horas y quedan sin extra.
 UPDATE asignaciones a
 JOIN (
     SELECT x.id,
@@ -432,6 +477,11 @@ JOIN (
     FROM asignaciones x
     JOIN usuarios u ON u.id = x.usuario_id
     WHERE x.deleted_at IS NULL
+      AND NOT EXISTS (SELECT 1 FROM ausencias au WHERE au.asignacion_id = x.id AND au.estado IN ('PENDIENTE', 'CUBIERTA'))
 ) c ON c.id = a.id
 SET a.minutos_extra = IF(c.maximo > 0, GREATEST(0, LEAST(c.duracion_minutos, c.acumulado - c.maximo)), 0),
     a.es_extra      = IF(c.maximo > 0 AND c.acumulado > c.maximo, 1, 0);
+
+UPDATE asignaciones a
+JOIN ausencias au ON au.asignacion_id = a.id AND au.estado IN ('PENDIENTE', 'CUBIERTA')
+SET a.es_extra = 0, a.minutos_extra = 0;

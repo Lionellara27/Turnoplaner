@@ -72,9 +72,18 @@ $describe = trim($ayudaId . ($error !== '' ? ' error-usuario_id' : ''));
 
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
         <p class="small text-body-secondary mb-0" role="status" data-filtro-contador data-singular="enfermero/a" data-plural="enfermeros/as"><?= $total > 0 ? $total . ($total === 1 ? ' enfermero/a' : ' enfermeros/as') : '' ?></p>
-        <button type="button" class="btn btn-outline-secondary d-none" data-filtro-restablecer data-solo-con-filtro>
-            <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Restablecer filtros
-        </button>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <label for="<?= esc($prefijo, 'attr') ?>-orden" class="small fw-semibold mb-0">Ordenar por</label>
+            <select class="form-select w-auto" id="<?= esc($prefijo, 'attr') ?>-orden" data-filtro-orden>
+                <option value="prioridad:asc" selected>Prioridad de guardia</option>
+                <option value="minutos:asc">Menor carga horaria</option>
+                <option value="minutos:desc">Mayor carga horaria</option>
+                <option value="nombre:asc">Alfabético (A a Z)</option>
+            </select>
+            <button type="button" class="btn btn-outline-secondary d-none" data-filtro-restablecer data-solo-con-filtro>
+                <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Restablecer filtros
+            </button>
+        </div>
     </div>
 
     <div data-sel-estado></div>

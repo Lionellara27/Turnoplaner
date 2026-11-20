@@ -104,7 +104,8 @@ abstract class BaseController extends Controller
      */
     protected function volverConErrores(array $errores, ?string $destino = null, string $tipo = 'errors'): RedirectResponse
     {
-        $post = (array) $this->request->getPost();
+        // Solo valores simples: un campo enviado como arreglo (motivo[]=x) rompía la vista al volver a pintar el formulario.
+        $post = array_filter((array) $this->request->getPost(), 'is_scalar');
         foreach (self::CAMPOS_SENSIBLES as $campo) {
             unset($post[$campo]);
         }

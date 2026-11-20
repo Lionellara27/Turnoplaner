@@ -18,6 +18,8 @@
  * @var int                                           $cantidad, $minutos, $minutosExtra
  * @var \App\Entities\Asignacion|null                 $enCurso, $siguienteTurno
  * @var list<\App\Entities\Asignacion>                $turnosHoy, $turnosManana
+ * @var \App\Entities\Asignacion|null                 $turnoAyer  empezó ayer y sigue en curso o falta finalizarlo (HU-20)
+ * @var array<int, \App\Entities\Ausencia>            $ausencias  aviso de ausencia por turno (HU-18)
  */
 use App\Models\AsignacionModel;
 
@@ -26,7 +28,17 @@ $minutosExtra = $minutosExtra ?? 0;
 $anioMes      = substr($desde, 0, 7);
 $fechaVista   = $esActual ? $hoy : $desde;
 $url          = static fn (string $v, string $f): string => base_url('mi-cronograma') . '?' . http_build_query(['vista' => $v, 'fecha' => $f], '', '&amp;');
-$pieza        = static fn ($t, string $parte): string => view('cronograma/_turno', ['t' => $t, 'ahora' => $ahora, 'parte' => $parte]);
+$ausencias    = $ausencias ?? [];
+$turnoAyer    = $turnoAyer ?? null;
+$pieza        = static fn ($t, string $parte): string => trim(view('cronograma/_turno', ['t' => $t, 'ahora' => $ahora, 'parte' => $parte, 'ausencias' => $ausencias]));
+// HU-20: bloque "Marcar ingreso / Finalizar guardia" del turno de hoy o en curso
+$marcacion    = static fn ($t): string => view('cronograma/_marcacion', ['t' => $t, 'ahora' => $ahora, 'ausencias' => $ausencias]);
+// HU-18: "Informar ausencia" debajo del turno, solo si corresponde
+$acciones     = static function ($t) use ($pieza): string {
+    $html = $pieza($t, 'acciones');
+
+    return $html !== '' ? '<div class="mt-2">' . $html . '</div>' : '';
+};
 // Un turno del resumen: etiqueta, horario y sector, apilados (sin "·" sueltos).
 $resumen = static fn ($t): string => '<div class="d-flex flex-wrap align-items-center gap-2">' . $pieza($t, 'etiqueta')
     . '<span>' . $pieza($t, 'horario') . '</span>'
@@ -46,7 +58,7 @@ if ($vista === 'mes' && $esActual) {
         [$pasados, $resto] = [[], $dias];
     }
 }
-$datosDias = ['porDia' => $porDia, 'salidas' => $salidas, 'hoy' => $hoy, 'ahora' => $ahora, 'caption' => $caption];
+$datosDias = ['porDia' => $porDia, 'salidas' => $salidas, 'hoy' => $hoy, 'ahora' => $ahora, 'caption' => $caption, 'ausencias' => $ausencias];
 ?>
 <?= $this->extend('layouts/main') ?>
 
@@ -69,10 +81,15 @@ $datosDias = ['porDia' => $porDia, 'salidas' => $salidas, 'hoy' => $hoy, 'ahora'
         <section class="proximo-turno p-3 mb-4" aria-labelledby="titulo-resumen">
             <h2 class="visually-hidden" id="titulo-resumen">Hoy y mañana</h2>
 
-            <?php if ($enCurso !== null && (string) $enCurso->fecha !== $hoy): ?>
+            <?php if ($turnoAyer !== null): ?>
                 <div class="mb-3">
-                    <h3 class="h6 fw-semibold mb-2"><i class="bi bi-play-circle-fill me-1" aria-hidden="true"></i>Turno en curso (empezó ayer)</h3>
-                    <?= $resumen($enCurso) ?>
+                    <?php if ($turnoAyer->estadoTurno($ahora) === 'en_curso'): ?>
+                        <h3 class="h6 fw-semibold mb-2"><i class="bi bi-play-circle-fill me-1" aria-hidden="true"></i>Turno en curso (empezó ayer)</h3>
+                    <?php else: ?>
+                        <h3 class="h6 fw-semibold mb-2"><i class="bi bi-moon-stars me-1" aria-hidden="true"></i>Turno de ayer: falta finalizar la guardia</h3>
+                    <?php endif; ?>
+                    <?= $resumen($turnoAyer) ?>
+                    <?= $marcacion($turnoAyer) ?>
                 </div>
             <?php endif; ?>
 
@@ -84,7 +101,12 @@ $datosDias = ['porDia' => $porDia, 'salidas' => $salidas, 'hoy' => $hoy, 'ahora'
                     <?php else: ?>
                         <div class="vstack gap-2">
                             <?php foreach ($turnosHoy as $t): ?>
-                                <div><?= $resumen($t) ?><div class="mt-1"><?= $pieza($t, 'estado') ?></div></div>
+                                <div>
+                                    <?= $resumen($t) ?>
+                                    <div class="mt-1"><?= $pieza($t, 'estado') ?></div>
+                                    <?= $marcacion($t) ?>
+                                    <?= $acciones($t) ?>
+                                </div>
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
@@ -96,7 +118,11 @@ $datosDias = ['porDia' => $porDia, 'salidas' => $salidas, 'hoy' => $hoy, 'ahora'
                     <?php else: ?>
                         <div class="vstack gap-2">
                             <?php foreach ($turnosManana as $t): ?>
-                                <?= $resumen($t) ?>
+                                <div>
+                                    <?= $resumen($t) ?>
+                                    <?php if (isset($ausencias[(int) $t->id])): ?><div class="mt-1"><?= $pieza($t, 'estado') ?></div><?php endif; ?>
+                                    <?= $acciones($t) ?>
+                                </div>
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
@@ -106,6 +132,8 @@ $datosDias = ['porDia' => $porDia, 'salidas' => $salidas, 'hoy' => $hoy, 'ahora'
             <?php if ($siguienteTurno !== null): ?>
                 <p class="mb-0 mt-3"><span class="fw-semibold">Próximo turno:</span> <span class="text-capitalize"><?= esc(fecha_larga((string) $siguienteTurno->fecha)) ?></span></p>
                 <div class="mt-1"><?= $resumen($siguienteTurno) ?></div>
+                <?php if (isset($ausencias[(int) $siguienteTurno->id])): ?><div class="mt-1"><?= $pieza($siguienteTurno, 'estado') ?></div><?php endif; ?>
+                <?= $acciones($siguienteTurno) ?>
             <?php elseif ($turnosHoy === [] && $turnosManana === [] && $enCurso === null): ?>
                 <p class="mb-0 mt-3 text-body-secondary">No tiene turnos programados por ahora.</p>
             <?php endif; ?>
@@ -202,6 +230,7 @@ $datosDias = ['porDia' => $porDia, 'salidas' => $salidas, 'hoy' => $hoy, 'ahora'
                                                                 <div class="tp-calendario__nota"><i class="bi bi-clock me-1"></i><?= $pieza($t, 'horario') ?></div>
                                                                 <div class="mt-1"><?= $pieza($t, 'estado') ?></div>
                                                             </div>
+                                                            <?= $acciones($t) ?>
                                                         </div>
                                                     <?php endforeach; ?>
                                                 <?php endif; ?>

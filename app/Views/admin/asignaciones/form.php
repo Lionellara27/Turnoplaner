@@ -44,6 +44,8 @@ foreach ($enfermeros as $e) {
         'especialidad' => (string) ($e->especialidad ?? ''),
         'matricula'    => (string) ($e->matricula ?? ''),
         'horas_texto'  => $horas,
+        'minutos'      => $info !== null ? (int) ($info['minutos'] ?? 0) : 0,
+        'orden'        => count($opciones),
         'estado'       => $estado,
         'motivo'       => $motivo,
         'checked'      => $elegido === (string) $eid,

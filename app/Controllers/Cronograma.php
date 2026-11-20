@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Entities\Asignacion;
 use App\Models\AsignacionModel;
+use App\Models\AusenciaModel;
+use CodeIgniter\Exceptions\PageNotFoundException;
+use CodeIgniter\HTTP\RedirectResponse;
 use DateTimeImmutable;
 
 /**
@@ -15,6 +19,9 @@ use DateTimeImmutable;
  * Es la pantalla de destino del rol ENFERMERO tras el login (HU-02) y tras activar la cuenta (HU-01).
  *
  * Privacidad: el enfermero/a sale SIEMPRE de la sesión; la URL solo elige la vista y la fecha.
+ *
+ * HU-18: cada turno muestra el estado de su aviso de ausencia y, si todavía no empezó, el link "Informar ausencia".
+ * HU-20: en el turno de hoy (o el que sigue en curso desde ayer) se marca el ingreso y se finaliza la guardia.
  */
 class Cronograma extends BaseController
 {
@@ -103,6 +110,21 @@ class Cronograma extends BaseController
         }
         $siguienteTurno = ($turnosHoy === [] && $turnosMan === []) ? $modelo->siguienteProgramado($usuarioId, $ahora) : null;
 
+        // Turno que empezó ayer y sigue en curso, o que terminó hace poco y todavía puede finalizarse (HU-20)
+        $turnoAyer = null;
+        foreach ($cercanos as $t) {
+            if ((string) $t->fecha < $hoy && ($t->estadoTurno($ahora) === 'en_curso' || $t->puedeMarcarSalida($ahora))) {
+                $turnoAyer = $t;
+            }
+        }
+
+        // Aviso de ausencia de cada turno de la página (activo o, si no, el último rechazado): una sola consulta
+        $ids = [];
+        foreach (array_merge($todos, $cercanos, $siguienteTurno !== null ? [$siguienteTurno] : []) as $t) {
+            $ids[] = (int) $t->id;
+        }
+        $ausencias = (new AusenciaModel())->ultimaPorAsignaciones($ids);
+
         return view('cronograma/index', [
             'titulo'         => 'Mi cronograma - TurnoPlaner',
             'vista'          => $vista,
@@ -126,6 +148,56 @@ class Cronograma extends BaseController
             'turnosHoy'      => $turnosHoy,
             'turnosManana'   => $turnosMan,
             'siguienteTurno' => $siguienteTurno,
+            'turnoAyer'      => $turnoAyer,
+            'ausencias'      => $ausencias,
         ]);
+    }
+
+    /**
+     * HU-20: marca el ingreso al turno propio (desde 30 min antes del inicio hasta el fin).
+     * Las reglas las controla AsignacionModel::marcarIngreso(); un turno ajeno o inexistente da 404.
+     */
+    public function ingreso(int $id): RedirectResponse
+    {
+        $resultado = (new AsignacionModel())->marcarIngreso((int) session()->get('usuario_id'), $id);
+
+        if ($resultado['no_encontrada']) {
+            throw PageNotFoundException::forPageNotFound('El turno solicitado no existe.');
+        }
+        if (! $resultado['ok']) {
+            return redirect()->to(base_url('mi-cronograma'))->with('error', (string) $resultado['error']);
+        }
+
+        return redirect()->to(base_url('mi-cronograma'))
+            ->with('success', 'Ingreso registrado a las ' . $resultado['hora'] . '. Al terminar, recuerde finalizar la guardia.');
+    }
+
+    /**
+     * HU-20: finaliza la guardia (hasta 4 h después del fin) con las observaciones del pase (opcional, máx. 1000).
+     */
+    public function salida(int $id): RedirectResponse
+    {
+        $campo         = 'observaciones_pase-' . $id; // id del campo en la vista (uno por turno)
+        $observaciones = $this->request->getPost('observaciones_pase');
+        $observaciones = is_string($observaciones) ? trim($observaciones) : '';
+
+        if (mb_strlen($observaciones) > Asignacion::MAX_OBSERVACIONES_PASE) {
+            return $this->volverConErrores(
+                [$campo => 'Las observaciones del pase de guardia no pueden superar los ' . Asignacion::MAX_OBSERVACIONES_PASE . ' caracteres.'],
+                base_url('mi-cronograma')
+            );
+        }
+
+        $resultado = (new AsignacionModel())->marcarSalida((int) session()->get('usuario_id'), $id, $observaciones);
+
+        if ($resultado['no_encontrada']) {
+            throw PageNotFoundException::forPageNotFound('El turno solicitado no existe.');
+        }
+        if (! $resultado['ok']) {
+            return redirect()->to(base_url('mi-cronograma'))->with('error', (string) $resultado['error']);
+        }
+
+        return redirect()->to(base_url('mi-cronograma'))
+            ->with('success', 'Guardia finalizada a las ' . $resultado['hora'] . '.' . ($observaciones !== '' ? ' Se guardaron las observaciones del pase.' : ''));
     }
 }

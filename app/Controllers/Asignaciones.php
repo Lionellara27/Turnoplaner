@@ -142,7 +142,7 @@ class Asignaciones extends BaseController
 
         // Baja lógica + recálculo de las horas extras de esa semana, en una sola transacción (modelo).
         if (! $this->modelo->eliminarConRecalculo($asignacion)) {
-            return $this->fallar(['general' => 'No se pudo eliminar el turno. Intente nuevamente.']);
+            return $this->fallar(['general' => $this->modelo->ultimoError() ?? 'No se pudo eliminar el turno. Intente nuevamente.']);
         }
 
         $mensaje = 'Turno eliminado del ' . fecha_larga((string) $asignacion->fecha)

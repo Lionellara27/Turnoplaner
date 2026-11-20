@@ -43,6 +43,18 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
 // --- Portal de enfermería ---
 $routes->group('', ['filter' => ['auth', 'role:ENFERMERO']], static function (RouteCollection $routes): void {
     $routes->get('mi-cronograma', 'Cronograma::index');
+
+    // HU-20: marcar ingreso y finalizar la guardia del turno propio
+    $routes->post('mi-cronograma/(:id)/ingreso', 'Cronograma::ingreso/$1');
+    $routes->post('mi-cronograma/(:id)/salida', 'Cronograma::salida/$1');
+
+    // HU-18: aviso de ausencia a un turno futuro propio
+    $routes->get('mis-ausencias', 'MisAusencias::index');
+    $routes->get('mis-ausencias/nueva/(:id)', 'MisAusencias::nueva/$1');
+    $routes->post('mis-ausencias/nueva/(:id)', 'MisAusencias::guardar/$1');
+
+    // HU-19: historial personal de horas y guardias
+    $routes->get('mi-historial', 'Historial::index');
 });
 
 // --- Administración ---
@@ -84,4 +96,13 @@ $routes->group('admin', ['filter' => ['auth', 'role:ADMIN']], static function (R
     $routes->get('asignaciones/(:id)/editar', 'Asignaciones::editar/$1');
     $routes->post('asignaciones/(:id)/editar', 'Asignaciones::actualizar/$1');
     $routes->post('asignaciones/(:id)/eliminar', 'Asignaciones::eliminar/$1');
+
+    // HU-15: tablero de control de cobertura (?semana=YYYY-MM-DD o ?dia=YYYY-MM-DD)
+    $routes->get('tablero', 'Tablero::index');
+
+    // HU-16: gestión de ausencias y reemplazo
+    $routes->get('ausencias', 'Ausencias::index');
+    $routes->get('ausencias/(:id)/reemplazo', 'Ausencias::reemplazo/$1');
+    $routes->post('ausencias/(:id)/reemplazo', 'Ausencias::asignarReemplazo/$1');
+    $routes->post('ausencias/(:id)/rechazar', 'Ausencias::rechazar/$1');
 });

@@ -68,7 +68,7 @@ class Home extends BaseController
                 $fechaStr = $diaIter->format('Y-m-d');
                 foreach ($tipos as $t) {
                     $asignados = $grilla[$fechaStr][(int) $t->id] ?? [];
-                    $activos   = array_filter($asignados, static fn ($a): bool => ! $a->enfermeroDeBaja());
+                    $activos   = array_filter($asignados, static fn ($a): bool => $a->cuentaEnDotacion());
                     $cubiertos = count($activos);
                     if ($cubiertos < $minimo) {
                         $alertasCobertura[] = [
@@ -101,6 +101,8 @@ class Home extends BaseController
             'hoy'              => $hoy,
             'grilla'           => $grilla,
             'alertasCobertura' => $alertasCobertura,
+            // HU-16: aviso de ausencias pendientes de resolver
+            'ausenciasPendientes' => (new \App\Models\AusenciaModel())->contarPendientes(),
         ]);
     }
 }

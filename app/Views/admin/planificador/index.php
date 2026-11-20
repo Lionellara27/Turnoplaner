@@ -83,7 +83,7 @@ if ($sector !== null && $tipos !== []) {
                 $activosCount = 0;
                 foreach ($asignados as $a) {
                     $deBaja = $a->enfermeroDeBaja();
-                    if (! $deBaja) {
+                    if ($a->cuentaEnDotacion()) {
                         $activosCount++;
                     }
                     $listaEnf[] = [
@@ -96,6 +96,12 @@ if ($sector !== null && $tipos !== []) {
                         'de_baja'     => $deBaja,
                         'url_editar'  => base_url('admin/asignaciones/' . $a->id . '/editar'),
                         'desc_quitar' => $a->nombreEnfermero() . ' del turno ' . $t->nombre . ' del ' . fecha_larga($dia),
+                        // HU-16 / HU-20: estado de ausencia, reemplazo y marcaciones (app.js los muestra con ícono + texto)
+                        'ausencia'     => $a->ausenteCubierto() ? 'Ausente justificado (Cubierto)' : ($a->ausenciaPendiente() ? 'Ausencia en gestión' : ''),
+                        'url_ausencia' => $a->ausenciaPendiente() ? base_url('admin/ausencias/' . (int) $a->ausenciaId() . '/reemplazo')
+                            : ($a->ausenteCubierto() ? base_url('admin/ausencias?estado=CUBIERTA') : ''),
+                        'es_reemplazo' => $a->esReemplazo(),
+                        'marcas'       => trim(($a->tieneIngreso() ? 'Ingreso ' . $a->horaIngreso() : '') . ($a->tieneSalida() ? ' · Salida ' . $a->horaSalida() : '')),
                     ];
                 }
 
